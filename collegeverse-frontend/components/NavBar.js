@@ -4,11 +4,11 @@ import { Menu, X, Sparkles } from "lucide-react";
 import { AuthContext } from "./AuthProvider";
 
 const navLinks = [
-  { href: "/#features", label: "Features" },
-  { href: "/#leaderboard", label: "Leaderboard" },
-  { href: "/#testimonials", label: "Testimonials" },
-  { href: "/microgigs", label: "MicroGigs" },
+  { href: "/communities", label: "Communities" },
+  { href: "/qa", label: "Q&A" },
   { href: "/colleges", label: "Colleges" },
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/microgigs", label: "MicroGigs" },
 ];
 
 export default function NavBar() {
