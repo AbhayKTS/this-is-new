@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
 import { verifyToken, requireAdmin, requireVerifiedSenior } from "../middleware/auth.js";
+import { moderate } from "../middleware/contentModeration.js";
 import {
   collegeIdParamSchema,
   submitRatingSchema,
@@ -65,12 +66,13 @@ router.get(
 // AUTHENTICATED ROUTES
 // ============================================
 
-// Submit a rating (verified seniors only)
+// Submit a rating (verified seniors only + content moderation)
 router.post(
   "/:id/ratings",
   verifyToken,
   requireVerifiedSenior,
   validate({ params: collegeIdParamSchema, body: submitRatingSchema }),
+  moderate(["title", "content", "pros", "cons"], { contentType: "review", blockSevere: true }),
   submitCollegeRatingController
 );
 
