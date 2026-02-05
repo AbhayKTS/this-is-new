@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
 import { verifyToken, optionalAuth } from "../middleware/auth.js";
+import { moderate } from "../middleware/contentModeration.js";
 import {
   createQuestionSchema,
   createAnswerSchema,
@@ -48,19 +49,21 @@ router.get("/questions/:questionId/answers", getAnswersController);
 // AUTHENTICATED ROUTES
 // ============================================
 
-// Create a question (requires auth)
+// Create a question (requires auth + content moderation)
 router.post(
   "/questions",
   verifyToken,
   validate({ body: createQuestionSchema }),
+  moderate(["title", "content"], { contentType: "qa_question", blockSevere: true }),
   createQuestionController
 );
 
-// Post an answer (requires auth)
+// Post an answer (requires auth + content moderation)
 router.post(
   "/questions/:questionId/answers",
   verifyToken,
   validate({ body: createAnswerSchema }),
+  moderate(["content"], { contentType: "qa_answer", blockSevere: true }),
   createAnswerController
 );
 
