@@ -689,12 +689,328 @@ POST /api/ai/check-content
 }
 ```
 
+---
+
+## 10. Web3/Blockchain APIs
+
+### Get Web3 Service Status
+```
+GET /api/web3/status
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "connected": true,
+    "canMint": true,
+    "network": {
+      "name": "Polygon Amoy Testnet",
+      "chainId": 80002,
+      "rpcUrl": "https://polygon-amoy.g.alchemy.com/v2/..."
+    }
+  }
+}
+```
+
+### Get Badge Type Definitions
+```
+GET /api/web3/badges/types
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "FIRST_REVIEW": {
+      "id": "first_review",
+      "name": "First Review",
+      "description": "Awarded for submitting your first college review",
+      "rarity": "common"
+    },
+    "HELPFUL_REVIEWER": { ... },
+    "QA_CHAMPION": { ... },
+    "TOP_CONTRIBUTOR": { ... },
+    "VERIFIED_SENIOR": { ... },
+    "COMMUNITY_LEADER": { ... },
+    "MENTOR": { ... }
+  }
+}
+```
+
+### Link Wallet to Account
+```
+POST /api/web3/wallet/link
+```
+**Headers:** Requires authentication
+**Body:**
+```json
+{
+  "walletAddress": "0x1234...5678",
+  "signature": "optional_signature_for_verification"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Wallet linked successfully",
+  "data": {
+    "success": true,
+    "alreadyLinked": false
+  }
+}
+```
+
+### Get User's Linked Wallet
+```
+GET /api/web3/wallet
+```
+**Headers:** Requires authentication
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user123",
+    "walletAddress": "0x1234...5678",
+    "linkedAt": "2026-02-05T10:00:00Z",
+    "isPrimary": true
+  }
+}
+```
+
+### Get User's Web3 Status
+```
+GET /api/web3/user/status
+```
+**Headers:** Requires authentication
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "walletLinked": true,
+    "walletAddress": "0x1234...5678",
+    "hasSBT": true,
+    "sbtTokenId": "42",
+    "badgeCount": 3,
+    "certificateCount": 2
+  }
+}
+```
+
+### Mint Senior SBT
+```
+POST /api/web3/sbt/mint
+```
+**Headers:** Requires authentication (Verified Senior only)
+**Body:**
+```json
+{
+  "walletAddress": "0x1234...5678"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "SBT minted successfully",
+  "data": {
+    "success": true,
+    "tokenId": "42",
+    "transactionHash": "0xabc...def",
+    "metadataUri": "ipfs://Qm...",
+    "explorerUrl": "https://amoy.polygonscan.com/tx/0xabc...def"
+  }
+}
+```
+
+### Verify Senior SBT
+```
+GET /api/web3/sbt/verify/:walletAddress
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "verified": true,
+    "tokenId": "42",
+    "metadata": {
+      "name": "CollegeVerse Verified Senior - IIT Bombay",
+      "description": "...",
+      "attributes": [...]
+    },
+    "mintedAt": "2026-02-05T10:00:00Z",
+    "userId": "user123"
+  }
+}
+```
+
+### Mint Achievement Badge
+```
+POST /api/web3/badges/mint
+```
+**Headers:** Requires authentication
+**Body:**
+```json
+{
+  "walletAddress": "0x1234...5678",
+  "badgeType": "FIRST_REVIEW",
+  "achievementData": {
+    "reviewId": "review123",
+    "collegeName": "IIT Bombay"
+  }
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "First Review badge minted successfully",
+  "data": {
+    "success": true,
+    "badge": "First Review",
+    "rarity": "common",
+    "tokenId": "123",
+    "transactionHash": "0xabc...def",
+    "metadataUri": "ipfs://Qm...",
+    "explorerUrl": "https://amoy.polygonscan.com/tx/0xabc...def"
+  }
+}
+```
+
+### Get User's NFT Badges
+```
+GET /api/web3/badges/user
+```
+**Headers:** Requires authentication
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "badge_doc_id",
+      "badgeType": "first_review",
+      "badgeName": "First Review",
+      "rarity": "common",
+      "tokenId": "123",
+      "transactionHash": "0xabc...def",
+      "mintedAt": "2026-02-05T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Get Badges by Wallet
+```
+GET /api/web3/badges/wallet/:walletAddress
+```
+**Response:** Same as above
+
+### Store Certificate on IPFS
+```
+POST /api/web3/certificates/store
+```
+**Headers:** Requires authentication
+**Body:**
+```json
+{
+  "title": "Bachelor of Technology",
+  "certificateType": "degree",
+  "issuer": "IIT Bombay",
+  "issuedDate": "2026-05-15",
+  "description": "B.Tech in Computer Science",
+  "recipientName": "John Doe"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Certificate stored on IPFS successfully",
+  "data": {
+    "id": "cert_doc_id",
+    "metadataUri": "ipfs://Qm...",
+    "fileUri": "ipfs://Qm...",
+    "metadataUrl": "https://gateway.pinata.cloud/ipfs/Qm...",
+    "fileUrl": "https://gateway.pinata.cloud/ipfs/Qm..."
+  }
+}
+```
+
+### Get User's Certificates
+```
+GET /api/web3/certificates/user
+```
+**Headers:** Requires authentication
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cert_doc_id",
+      "title": "Bachelor of Technology",
+      "certificateType": "degree",
+      "issuer": "IIT Bombay",
+      "metadataUri": "ipfs://Qm...",
+      "metadataUrl": "https://gateway.pinata.cloud/ipfs/Qm...",
+      "storedAt": "2026-02-05T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Verify Certificate
+```
+GET /api/web3/certificates/verify?ipfsUri=ipfs://Qm...
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "verified": true,
+    "certificate": {
+      "title": "Bachelor of Technology",
+      "issuer": "IIT Bombay",
+      "issuedDate": "2026-05-15",
+      "certificateType": "degree",
+      "storedAt": "2026-02-05T10:00:00Z"
+    }
+  }
+}
+```
+
+### Admin: Award Badge
+```
+POST /api/web3/admin/award-badge
+```
+**Headers:** Requires Admin authentication
+**Body:**
+```json
+{
+  "userId": "user123",
+  "walletAddress": "0x1234...5678",
+  "badgeType": "TOP_CONTRIBUTOR",
+  "achievementData": { ... }
+}
+```
+
+---
+
 ## Rate Limiting
 
 - General: 100 requests per 15 minutes
 - Auth: 20 requests per 15 minutes
 - Write operations: 50 requests per 15 minutes
 - AI Endpoints: 10 requests per minute (standard), 5 requests per minute (heavy operations)
+- Web3 Endpoints: 10 requests per minute
+- Minting Operations: 5 per hour
 
 ## Environment Variables
 
@@ -708,3 +1024,14 @@ POST /api/ai/check-content
 - `OPENAI_MAX_TOKENS` - Max tokens per request (default: 1000)
 - `AI_ENABLED` - Enable/disable AI features (default: true)
 - `AI_MODERATION_ENABLED` - Enable/disable content moderation (default: true)
+
+### Optional - Web3 Features
+- `WEB3_ENABLED` - Enable/disable Web3 features (default: true)
+- `POLYGON_RPC_URL` - Polygon RPC endpoint
+- `POLYGON_CHAIN_ID` - Chain ID (80002 for Amoy testnet)
+- `PLATFORM_WALLET_PRIVATE_KEY` - Platform wallet for minting
+- `SBT_CONTRACT_ADDRESS` - Deployed SBT contract address
+- `BADGE_NFT_CONTRACT_ADDRESS` - Deployed Badge NFT contract address
+- `PINATA_API_KEY` - Pinata API key for IPFS
+- `PINATA_SECRET_KEY` - Pinata secret key
+- `PINATA_GATEWAY` - Pinata gateway URL
