@@ -452,6 +452,223 @@ GET /api/communities/:id/membership
 | `senior` | Verified senior - can rate colleges, trusted answers |
 | `admin` | Full admin access |
 
+---
+
+## 9. AI-Powered Features APIs
+
+### Get AI Service Status
+```
+GET /api/ai/status
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "available": true,
+    "model": "gpt-4o",
+    "moderationEnabled": true
+  }
+}
+```
+
+### Summarize Q&A Thread
+```
+GET /api/ai/summarize/qa/:questionId
+```
+**Query Params:**
+- `refresh`: `true` to force regenerate (optional)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "questionId": "abc123",
+    "summary": "The main consensus is...",
+    "keyPoints": ["Point 1", "Point 2", "Point 3"],
+    "consensus": "Most answers agree that...",
+    "bestAnswer": "The top answer suggests...",
+    "generatedAt": "2026-02-05T10:00:00Z"
+  },
+  "cached": true
+}
+```
+
+### Summarize College Reviews
+```
+GET /api/ai/summarize/reviews/:collegeId
+```
+**Query Params:**
+- `refresh`: `true` to force regenerate (optional)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "collegeId": "college123",
+    "collegeName": "IIT Bombay",
+    "reviewCount": 156,
+    "averageRating": 4.2,
+    "summary": "Students praise the academic rigor...",
+    "strengths": ["Excellent faculty", "Strong placements"],
+    "weaknesses": ["High pressure environment"],
+    "academics": "Top-tier academic quality...",
+    "placements": "95% placement rate with top companies...",
+    "campusLife": "Vibrant but competitive...",
+    "infrastructure": "World-class facilities...",
+    "overallSentiment": "positive",
+    "recommendationScore": 8.5,
+    "idealFor": ["Research-oriented students", "Career-focused individuals"],
+    "generatedAt": "2026-02-05T10:00:00Z"
+  },
+  "cached": true
+}
+```
+
+### Get College Recommendations
+```
+POST /api/ai/recommendations
+```
+**Body:**
+```json
+{
+  "interestedCourses": ["Computer Science", "Data Science"],
+  "preferredLocations": ["Maharashtra", "Karnataka"],
+  "budgetRange": { "min": 100000, "max": 500000 },
+  "careerGoals": "Software Engineer at a tech company",
+  "academicScore": 85,
+  "priorities": ["placements", "research"],
+  "collegeType": "private"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "collegeId": "college123",
+        "collegeName": "ABC University",
+        "matchScore": 92,
+        "matchReasons": ["Strong CS program", "High placement rate"],
+        "concerns": ["High fees"],
+        "highlights": ["Google recruits here", "Excellent labs"],
+        "college": { ... full college data ... }
+      }
+    ],
+    "overallAdvice": "Based on your profile...",
+    "alternativeConsiderations": "You might also consider...",
+    "generatedAt": "2026-02-05T10:00:00Z"
+  }
+}
+```
+
+### Generate Comparison Highlights
+```
+POST /api/ai/compare
+```
+**Body:**
+```json
+{
+  "collegeIds": ["college1", "college2", "college3"]
+}
+```
+**Query Params:**
+- `refresh`: `true` to force regenerate (optional)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "collegeIds": ["college1", "college2", "college3"],
+    "colleges": [{ "id": "...", "name": "..." }],
+    "executiveSummary": "Overall comparison shows...",
+    "comparisonTable": {
+      "academics": { "winner": "College A", "analysis": "..." },
+      "placements": { "winner": "College B", "analysis": "..." },
+      "infrastructure": { "winner": "Tie", "analysis": "..." },
+      "valueForMoney": { "winner": "College C", "analysis": "..." },
+      "campusLife": { "winner": "College A", "analysis": "..." }
+    },
+    "collegeProfiles": [
+      {
+        "collegeName": "College A",
+        "bestFor": ["Research students"],
+        "uniqueStrengths": ["Nobel laureate faculty"],
+        "considerations": ["Competitive environment"]
+      }
+    ],
+    "recommendations": {
+      "forPlacements": "College B because...",
+      "forResearch": "College A because...",
+      "forCampusLife": "College A because...",
+      "forBudget": "College C because..."
+    },
+    "finalVerdict": "The best choice depends on your priorities...",
+    "generatedAt": "2026-02-05T10:00:00Z"
+  },
+  "cached": true
+}
+```
+
+### Content Moderation
+```
+POST /api/ai/moderate
+```
+**Headers:** Requires authentication
+**Body:**
+```json
+{
+  "content": "Text to moderate",
+  "contentType": "review"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "approved": true,
+    "confidence": 0.95,
+    "flags": [],
+    "category": "clean",
+    "reason": "Content appears appropriate",
+    "suggestedAction": "none",
+    "editSuggestion": null
+  }
+}
+```
+
+### Quick Content Check
+```
+POST /api/ai/check-content
+```
+**Headers:** Requires authentication
+**Body:**
+```json
+{
+  "content": "Text to check",
+  "contentType": "general"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "approved": true,
+    "category": "clean",
+    "flags": []
+  }
+}
+```
+
+---
+
 ## Response Format
 
 ### Success Response
@@ -477,3 +694,17 @@ GET /api/communities/:id/membership
 - General: 100 requests per 15 minutes
 - Auth: 20 requests per 15 minutes
 - Write operations: 50 requests per 15 minutes
+- AI Endpoints: 10 requests per minute (standard), 5 requests per minute (heavy operations)
+
+## Environment Variables
+
+### Required
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_KEY` - Supabase API key
+
+### Optional - AI Features
+- `OPENAI_API_KEY` - OpenAI API key for AI features
+- `OPENAI_MODEL` - Model to use (default: gpt-4o)
+- `OPENAI_MAX_TOKENS` - Max tokens per request (default: 1000)
+- `AI_ENABLED` - Enable/disable AI features (default: true)
+- `AI_MODERATION_ENABLED` - Enable/disable content moderation (default: true)
