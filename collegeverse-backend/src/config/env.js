@@ -24,4 +24,19 @@ export const env = {
   // AI Feature Flags
   aiEnabled: process.env.AI_ENABLED !== "false",
   aiModerationEnabled: process.env.AI_MODERATION_ENABLED !== "false",
+  
+  // Web3 Configuration
+  web3Enabled: process.env.WEB3_ENABLED !== "false",
+  polygonRpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-amoy.g.alchemy.com/v2/demo",
+  polygonChainId: Number(process.env.POLYGON_CHAIN_ID) || 80002, // Amoy testnet
+  platformWalletPrivateKey: process.env.PLATFORM_WALLET_PRIVATE_KEY,
+  
+  // Smart Contract Addresses (deployed contracts)
+  sbtContractAddress: process.env.SBT_CONTRACT_ADDRESS,
+  badgeNftContractAddress: process.env.BADGE_NFT_CONTRACT_ADDRESS,
+  
+  // IPFS Configuration (Pinata)
+  pinataApiKey: process.env.PINATA_API_KEY,
+  pinataSecretKey: process.env.PINATA_SECRET_KEY,
+  pinataGateway: process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs",
 };
