@@ -14,6 +14,8 @@ import badgesRouter from "./badges.js";
 import collegesRouter from "./colleges.js";
 // AI routes
 import aiRouter from "./ai.js";
+// Web3 routes
+import web3Router from "./web3.js";
 
 const router = Router();
 
@@ -37,5 +39,8 @@ router.use("/colleges", collegesRouter);
 
 // AI-powered features
 router.use("/ai", aiRouter);
+
+// Web3/Blockchain features
+router.use("/web3", web3Router);
 
 export default router;
