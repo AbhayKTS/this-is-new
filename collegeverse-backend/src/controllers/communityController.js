@@ -7,12 +7,18 @@ import {
   getUserCommunities,
   getCommunityMembers,
   isMember,
+  createPost,
+  getCommunityPosts,
 } from "../services/communityService.js";
 import { success, created } from "../utils/response.js";
 
 export const createCommunityController = async (req, res, next) => {
   try {
-    const data = await createCommunity(req.validatedBody);
+    // Use authenticated user's ID
+    const data = await createCommunity({
+      ...req.body,
+      created_by: req.user.uid,
+    });
     created(res, data, "Community created");
   } catch (err) {
     next(err);
@@ -47,8 +53,7 @@ export const listCommunitiesController = async (req, res, next) => {
 export const joinCommunityController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.validatedBody;
-    const data = await joinCommunity(id, user_id);
+    const data = await joinCommunity(id, req.user.uid);
     success(res, data, data.alreadyMember ? "Already a member" : "Joined community");
   } catch (err) {
     next(err);
@@ -58,8 +63,7 @@ export const joinCommunityController = async (req, res, next) => {
 export const leaveCommunityController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.validatedBody;
-    const data = await leaveCommunity(id, user_id);
+    const data = await leaveCommunity(id, req.user.uid);
     success(res, data, "Left community");
   } catch (err) {
     next(err);
@@ -71,6 +75,15 @@ export const getUserCommunitiesController = async (req, res, next) => {
     const { userId } = req.params;
     const data = await getUserCommunities(userId);
     success(res, data, "User communities fetched");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getMyCommunitiesController = async (req, res, next) => {
+  try {
+    const data = await getUserCommunities(req.user.uid);
+    success(res, data, "Your communities fetched");
   } catch (err) {
     next(err);
   }
@@ -93,9 +106,41 @@ export const getCommunityMembersController = async (req, res, next) => {
 export const checkMembershipController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-    const data = await isMember(id, userId);
+    const data = await isMember(id, req.user.uid);
     success(res, { isMember: data }, "Membership status fetched");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createPostController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Post content is required",
+      });
+    }
+    
+    const data = await createPost(id, req.user.uid, content);
+    created(res, data, "Post created");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getCommunityPostsController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, pageSize = 20 } = req.query;
+    const data = await getCommunityPosts(id, {
+      page: parseInt(page, 10),
+      pageSize: parseInt(pageSize, 10),
+    });
+    success(res, data, "Community posts fetched");
   } catch (err) {
     next(err);
   }

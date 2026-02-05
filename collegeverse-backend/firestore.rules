@@ -1,0 +1,316 @@
+// Firestore Security Rules for CollegeVerse
+// Deploy these rules to Firebase Console → Firestore Database → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user is the owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Get user document
+    function getUserData() {
+      return get(/databases/$(database)/documents/students/$(request.auth.uid)).data;
+    }
+    
+    // Check user role
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+    
+    // Check if user has any of the specified roles
+    function hasAnyRole(roles) {
+      return isAuthenticated() && getUserData().role in roles;
+    }
+    
+    // Check if user is admin
+    function isAdmin() {
+      return hasRole('admin');
+    }
+    
+    // Check if user is verified senior
+    function isVerifiedSenior() {
+      return isAuthenticated() && getUserData().isVerifiedSenior == true;
+    }
+    
+    // Check if user has college email (student or senior)
+    function hasCollegeEmail() {
+      return isAuthenticated() && getUserData().isCollegeEmail == true;
+    }
+    
+    // ============================================
+    // STUDENTS COLLECTION
+    // ============================================
+    match /students/{userId} {
+      // Anyone can read public profile data
+      allow read: if true;
+      
+      // User can create their own document
+      allow create: if isOwner(userId);
+      
+      // User can update their own document (except role)
+      allow update: if isOwner(userId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerifiedSenior', 'verificationStatus']);
+      
+      // Admin can update any user (including role)
+      allow update: if isAdmin();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // COLLEGES COLLECTION
+    // ============================================
+    match /colleges/{collegeId} {
+      // Anyone can read colleges
+      allow read: if true;
+      
+      // Only admin can create/update/delete colleges
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // SENIORS_VERIFICATION COLLECTION
+    // ============================================
+    match /seniors_verification/{verificationId} {
+      // User can read their own verification
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // User can create verification request
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        hasCollegeEmail();
+      
+      // User can update their own pending/rejected request
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        resource.data.status in ['pending', 'rejected'] &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'reviewedBy', 'reviewedAt']);
+      
+      // Admin can update status
+      allow update: if isAdmin();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // REVIEWS COLLECTION
+    // ============================================
+    match /reviews/{reviewId} {
+      // Anyone can read published reviews
+      allow read: if resource.data.status == 'published' || 
+        (isAuthenticated() && resource.data.authorId == request.auth.uid) ||
+        isAdmin();
+      
+      // College email users can create reviews
+      allow create: if hasCollegeEmail() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Author can update their own review
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'helpfulCount', 'notHelpfulCount']);
+      
+      // Admin can update any review
+      allow update: if isAdmin();
+      
+      // Author or admin can delete
+      allow delete: if isAuthenticated() && 
+        (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    
+    // ============================================
+    // QA_QUESTIONS COLLECTION
+    // ============================================
+    match /qa_questions/{questionId} {
+      // Anyone can read questions
+      allow read: if true;
+      
+      // College email users can create questions
+      allow create: if hasCollegeEmail() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Author can update their own question (except votes)
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes', 'downvotes', 'answersCount', 'acceptedAnswerId']);
+      
+      // Any authenticated user can vote (update votes only)
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'downvotes']);
+      
+      // Author can accept answer
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedAnswerId', 'status']);
+      
+      // Admin can update any question
+      allow update: if isAdmin();
+      
+      // Author or admin can delete
+      allow delete: if isAuthenticated() && 
+        (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    
+    // ============================================
+    // QA_ANSWERS COLLECTION
+    // ============================================
+    match /qa_answers/{answerId} {
+      // Anyone can read published answers
+      allow read: if resource.data.status == 'published' || 
+        (isAuthenticated() && resource.data.authorId == request.auth.uid) ||
+        isAdmin();
+      
+      // College email users can create answers
+      allow create: if hasCollegeEmail() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Author can update their own answer (except votes/accepted)
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes', 'downvotes', 'isAccepted']);
+      
+      // Any authenticated user can vote
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'downvotes']);
+      
+      // Admin can update any answer
+      allow update: if isAdmin();
+      
+      // Author or admin can delete
+      allow delete: if isAuthenticated() && 
+        (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    
+    // ============================================
+    // RATINGS COLLECTION
+    // ============================================
+    match /ratings/{ratingId} {
+      // Anyone can read ratings
+      allow read: if true;
+      
+      // Only verified seniors can create ratings
+      allow create: if isVerifiedSenior() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // Author can update their own rating
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admin can update/delete any rating
+      allow update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // COMPARISONS COLLECTION
+    // ============================================
+    match /comparisons/{comparisonId} {
+      // User can read their own comparisons
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Any authenticated user can create comparisons
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // User can update/delete their own comparisons
+      allow update, delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // LEADERBOARD_SCORES COLLECTION
+    // ============================================
+    match /leaderboard_scores/{userId} {
+      // Anyone can read leaderboard
+      allow read: if true;
+      
+      // Only backend (admin SDK) should write to leaderboard
+      allow write: if false;
+    }
+    
+    // ============================================
+    // BADGES COLLECTION
+    // ============================================
+    match /badges/{badgeId} {
+      // Anyone can read badges
+      allow read: if true;
+      
+      // Only admin can manage badges
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // USER_BADGES COLLECTION
+    // ============================================
+    match /user_badges/{userBadgeId} {
+      // Anyone can read user badges
+      allow read: if true;
+      
+      // Only backend should award badges
+      allow write: if false;
+    }
+    
+    // ============================================
+    // COMMUNITIES COLLECTION
+    // ============================================
+    match /communities/{communityId} {
+      // Anyone can read communities
+      allow read: if true;
+      
+      // Only admin can create communities
+      allow create: if isAdmin();
+      
+      // Moderators and admin can update
+      allow update: if isAdmin() || 
+        (isAuthenticated() && request.auth.uid in resource.data.moderatorIds);
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // COMMUNITY_POSTS COLLECTION
+    // ============================================
+    match /community_posts/{postId} {
+      // Anyone can read published posts
+      allow read: if resource.data.status == 'published' || 
+        (isAuthenticated() && resource.data.authorId == request.auth.uid) ||
+        isAdmin();
+      
+      // College email users can create posts
+      allow create: if hasCollegeEmail() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Author can update their own post
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'commentsCount', 'viewsCount', 'isPinned']);
+      
+      // Any authenticated user can like (update likesCount only)
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']);
+      
+      // Admin and moderators can pin/update status
+      allow update: if isAdmin();
+      
+      // Author or admin can delete
+      allow delete: if isAuthenticated() && 
+        (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+  }
+}

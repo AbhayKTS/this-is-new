@@ -1,11 +1,12 @@
 import {
   getBadgeDefinitions,
   getUserBadges,
-  getReputationHistory,
   getUserReputation,
   getTopContributors,
+  awardBadge,
+  initializeBadges,
 } from "../services/badgeService.js";
-import { success } from "../utils/response.js";
+import { success, created } from "../utils/response.js";
 
 export const getBadgeDefinitionsController = async (req, res, next) => {
   try {
@@ -26,15 +27,10 @@ export const getUserBadgesController = async (req, res, next) => {
   }
 };
 
-export const getReputationHistoryController = async (req, res, next) => {
+export const getMyBadgesController = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    const { page = 1, pageSize = 50 } = req.query;
-    const data = await getReputationHistory(userId, {
-      page: parseInt(page, 10),
-      pageSize: parseInt(pageSize, 10),
-    });
-    success(res, data, "Reputation history fetched");
+    const data = await getUserBadges(req.user.uid);
+    success(res, data, "Your badges fetched");
   } catch (err) {
     next(err);
   }
@@ -59,6 +55,33 @@ export const getTopContributorsController = async (req, res, next) => {
       collegeId,
     });
     success(res, data, "Top contributors fetched");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const awardBadgeController = async (req, res, next) => {
+  try {
+    const { userId, badgeType, metadata } = req.body;
+    
+    if (!userId || !badgeType) {
+      return res.status(400).json({
+        success: false,
+        message: "userId and badgeType are required",
+      });
+    }
+    
+    const data = await awardBadge(userId, badgeType, metadata || {});
+    created(res, data, "Badge awarded successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const initializeBadgesController = async (req, res, next) => {
+  try {
+    const data = await initializeBadges();
+    success(res, data, "Badges initialized successfully");
   } catch (err) {
     next(err);
   }

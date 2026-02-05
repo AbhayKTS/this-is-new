@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
+import { verifyToken, requireAdmin, requireVerifiedSenior } from "../middleware/auth.js";
 import {
   collegeIdParamSchema,
   submitRatingSchema,
@@ -14,9 +15,17 @@ import {
   compareCollegesController,
   getTrendingCollegesController,
   searchCollegesController,
+  createCollegeController,
+  updateCollegeController,
+  deleteCollegeController,
+  getCollegeStatsController,
 } from "../controllers/collegeController.js";
 
 const router = Router();
+
+// ============================================
+// PUBLIC ROUTES
+// ============================================
 
 // List all colleges
 router.get("/", listCollegesController);
@@ -52,11 +61,56 @@ router.get(
   getCollegeRatingsController
 );
 
+// ============================================
+// AUTHENTICATED ROUTES
+// ============================================
+
 // Submit a rating (verified seniors only)
 router.post(
   "/:id/ratings",
+  verifyToken,
+  requireVerifiedSenior,
   validate({ params: collegeIdParamSchema, body: submitRatingSchema }),
   submitCollegeRatingController
+);
+
+// ============================================
+// ADMIN ROUTES
+// ============================================
+
+// Create a new college (Admin only)
+router.post(
+  "/",
+  verifyToken,
+  requireAdmin,
+  createCollegeController
+);
+
+// Get college statistics (Admin only)
+router.get(
+  "/:id/stats",
+  verifyToken,
+  requireAdmin,
+  validate({ params: collegeIdParamSchema }),
+  getCollegeStatsController
+);
+
+// Update a college (Admin only)
+router.put(
+  "/:id",
+  verifyToken,
+  requireAdmin,
+  validate({ params: collegeIdParamSchema }),
+  updateCollegeController
+);
+
+// Delete a college (Admin only)
+router.delete(
+  "/:id",
+  verifyToken,
+  requireAdmin,
+  validate({ params: collegeIdParamSchema }),
+  deleteCollegeController
 );
 
 export default router;

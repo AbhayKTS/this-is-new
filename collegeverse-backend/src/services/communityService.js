@@ -1,151 +1,129 @@
-import { supabase } from "../lib/supabaseClient.js";
-
 /**
- * Community Service
+ * Community Service - Firebase Implementation
  * Handles college-wise communities where students connect and share experiences
  */
+
+import { communityService as firebaseCommunityService, studentService } from "./firebase/index.js";
 
 // Create a new college community
 export const createCommunity = async (payload) => {
   const { name, college_id, description, cover_image_url, created_by } = payload;
   
-  const { data, error } = await supabase
-    .from("communities")
-    .insert({
-      name,
-      college_id,
-      description,
-      cover_image_url,
-      created_by,
-      member_count: 1,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  // Get creator info
+  const creator = await studentService.getById(created_by);
   
-  if (error) throw error;
+  const community = await firebaseCommunityService.create({
+    name,
+    collegeId: college_id,
+    description,
+    coverImage: cover_image_url,
+    createdBy: created_by,
+    creatorName: creator?.name || "Unknown",
+  });
   
   // Auto-join creator to community
-  await joinCommunity(data.id, created_by);
+  await firebaseCommunityService.addMember(community.id, created_by, "admin");
   
-  return data;
+  return community;
 };
 
 // Get community by ID
 export const getCommunity = async (communityId) => {
-  const { data, error } = await supabase
-    .from("communities")
-    .select("*, colleges(name, location, established_year)")
-    .eq("id", communityId)
-    .single();
+  const community = await firebaseCommunityService.getById(communityId);
   
-  if (error) throw error;
-  return data;
+  if (!community) {
+    throw new Error("Community not found");
+  }
+  
+  return community;
 };
 
 // List all communities with optional filters
 export const listCommunities = async ({ page = 1, pageSize = 20, collegeId = null, search = null }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const result = await firebaseCommunityService.list({
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    collegeId,
+    search,
+  });
   
-  let query = supabase
-    .from("communities")
-    .select("*, colleges(name, location)", { count: "exact" });
-  
-  if (collegeId) {
-    query = query.eq("college_id", collegeId);
-  }
-  
-  if (search) {
-    query = query.ilike("name", `%${search}%`);
-  }
-  
-  const { data, error, count } = await query
-    .order("member_count", { ascending: false })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return {
+    data: result.data,
+    total: result.total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(result.total / pageSize),
+  };
 };
 
 // Join a community
 export const joinCommunity = async (communityId, userId) => {
-  const { data, error } = await supabase
-    .from("community_members")
-    .insert({
-      community_id: communityId,
-      user_id: userId,
-      joined_at: new Date().toISOString(),
-      role: "member",
-    })
-    .select()
-    .single();
+  const isMemberAlready = await firebaseCommunityService.isMember(communityId, userId);
   
-  if (error) {
-    // Ignore duplicate join attempts
-    if (error.code === "23505") return { alreadyMember: true };
-    throw error;
+  if (isMemberAlready) {
+    return { alreadyMember: true };
   }
   
-  // Increment member count
-  await supabase.rpc("increment_community_members", { community_id: communityId });
+  await firebaseCommunityService.addMember(communityId, userId, "member");
   
-  return data;
+  return { success: true };
 };
 
 // Leave a community
 export const leaveCommunity = async (communityId, userId) => {
-  const { error } = await supabase
-    .from("community_members")
-    .delete()
-    .eq("community_id", communityId)
-    .eq("user_id", userId);
-  
-  if (error) throw error;
-  
-  // Decrement member count
-  await supabase.rpc("decrement_community_members", { community_id: communityId });
-  
+  await firebaseCommunityService.removeMember(communityId, userId);
   return { success: true };
 };
 
 // Get user's joined communities
 export const getUserCommunities = async (userId) => {
-  const { data, error } = await supabase
-    .from("community_members")
-    .select("community_id, joined_at, role, communities(id, name, description, member_count, cover_image_url)")
-    .eq("user_id", userId)
-    .order("joined_at", { ascending: false });
-  
-  if (error) throw error;
-  return data;
+  return await firebaseCommunityService.getUserCommunities(userId);
 };
 
 // Get community members
 export const getCommunityMembers = async (communityId, { page = 1, pageSize = 50 }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const members = await firebaseCommunityService.getMembers(communityId, {
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
   
-  const { data, error, count } = await supabase
-    .from("community_members")
-    .select("user_id, joined_at, role, users(id, name, email, is_verified_senior, verified_college)", { count: "exact" })
-    .eq("community_id", communityId)
-    .order("joined_at", { ascending: true })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return {
+    data: members,
+    total: members.length,
+    page,
+    pageSize,
+  };
 };
 
 // Check if user is member
 export const isMember = async (communityId, userId) => {
-  const { data, error } = await supabase
-    .from("community_members")
-    .select("id")
-    .eq("community_id", communityId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  return await firebaseCommunityService.isMember(communityId, userId);
+};
+
+// Create a post in community
+export const createPost = async (communityId, userId, content) => {
+  const user = await studentService.getById(userId);
   
-  if (error) throw error;
-  return !!data;
+  return await firebaseCommunityService.createPost(communityId, {
+    authorId: userId,
+    authorName: user?.name || "Anonymous",
+    authorAvatar: user?.avatar || null,
+    isVerifiedSenior: user?.isVerifiedSenior || false,
+    content,
+  });
+};
+
+// Get community posts
+export const getCommunityPosts = async (communityId, { page = 1, pageSize = 20 }) => {
+  const posts = await firebaseCommunityService.getPosts(communityId, {
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+  
+  return {
+    data: posts,
+    total: posts.length,
+    page,
+    pageSize,
+  };
 };

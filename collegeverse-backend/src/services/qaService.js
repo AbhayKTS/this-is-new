@@ -1,59 +1,66 @@
-import { supabase } from "../lib/supabaseClient.js";
-
 /**
- * Q&A Service
+ * Q&A Service - Firebase Implementation
  * Handles structured question and answer system for freshers and seniors
  */
+
+import { qaService as firebaseQaService, studentService, badgeService } from "./firebase/index.js";
+
+// Question categories
+const CATEGORIES = [
+  { id: "academics", name: "Academics", description: "Courses, faculty, curriculum" },
+  { id: "placements", name: "Placements", description: "Jobs, packages, companies" },
+  { id: "hostel", name: "Hostel Life", description: "Accommodation, food, facilities" },
+  { id: "campus", name: "Campus Culture", description: "Events, clubs, social life" },
+  { id: "admissions", name: "Admissions", description: "Process, cutoffs, counseling" },
+  { id: "fees", name: "Fees & Scholarships", description: "Costs, financial aid" },
+  { id: "infrastructure", name: "Infrastructure", description: "Labs, library, sports" },
+  { id: "general", name: "General", description: "Other questions" },
+];
 
 // Post a new question
 export const createQuestion = async (payload) => {
   const { user_id, community_id, college_id, title, body, category, tags } = payload;
   
-  const { data, error } = await supabase
-    .from("questions")
-    .insert({
-      user_id,
-      community_id,
-      college_id,
-      title,
-      body,
-      category,
-      tags: tags || [],
-      status: "open",
-      view_count: 0,
-      answer_count: 0,
-      upvotes: 0,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  // Get user info for denormalization
+  const user = await studentService.getById(user_id);
   
-  if (error) throw error;
-  return data;
+  const question = await firebaseQaService.createQuestion({
+    authorId: user_id,
+    authorName: user?.name || "Anonymous",
+    authorAvatar: user?.avatar || null,
+    isVerifiedSenior: user?.isVerifiedSenior || false,
+    communityId: community_id || null,
+    collegeId: college_id || null,
+    title,
+    body,
+    category: category || "general",
+    tags: tags || [],
+  });
+  
+  // Increment user's question count
+  await studentService.incrementStat(user_id, "questionsAsked");
+  
+  return question;
 };
 
 // Get question by ID with answers
 export const getQuestion = async (questionId) => {
-  const { data, error } = await supabase
-    .from("questions")
-    .select(`
-      *,
-      users(id, name, is_verified_senior, verified_college),
-      communities(id, name),
-      colleges(id, name)
-    `)
-    .eq("id", questionId)
-    .single();
+  const question = await firebaseQaService.getQuestionById(questionId);
   
-  if (error) throw error;
+  if (!question) {
+    throw new Error("Question not found");
+  }
   
   // Increment view count
-  await supabase
-    .from("questions")
-    .update({ view_count: (data.view_count || 0) + 1 })
-    .eq("id", questionId);
+  await firebaseQaService.incrementViews(questionId);
   
-  return data;
+  // Get answers
+  const answers = await firebaseQaService.getAnswersForQuestion(questionId);
+  
+  return {
+    ...question,
+    answers,
+  };
 };
 
 // List questions with filters
@@ -65,239 +72,250 @@ export const listQuestions = async ({
   category = null,
   status = null,
   userId = null,
-  sortBy = "newest"
+  sortBy = "newest",
+  searchQuery = null,
 }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const result = await firebaseQaService.listQuestions({
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    communityId,
+    collegeId,
+    category,
+    status,
+    authorId: userId,
+    sortBy,
+    searchQuery,
+  });
   
-  let query = supabase
-    .from("questions")
-    .select(`
-      *,
-      users(id, name, is_verified_senior, verified_college),
-      communities(id, name)
-    `, { count: "exact" });
-  
-  if (communityId) query = query.eq("community_id", communityId);
-  if (collegeId) query = query.eq("college_id", collegeId);
-  if (category) query = query.eq("category", category);
-  if (status) query = query.eq("status", status);
-  if (userId) query = query.eq("user_id", userId);
-  
-  // Sort options
-  switch (sortBy) {
-    case "popular":
-      query = query.order("view_count", { ascending: false });
-      break;
-    case "unanswered":
-      query = query.eq("answer_count", 0).order("created_at", { ascending: false });
-      break;
-    case "mostVoted":
-      query = query.order("upvotes", { ascending: false });
-      break;
-    default: // newest
-      query = query.order("created_at", { ascending: false });
-  }
-  
-  const { data, error, count } = await query.range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return {
+    data: result.data,
+    total: result.total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(result.total / pageSize),
+  };
 };
 
 // Post an answer
 export const createAnswer = async (payload) => {
   const { question_id, user_id, body } = payload;
   
-  const { data, error } = await supabase
-    .from("answers")
-    .insert({
-      question_id,
-      user_id,
-      body,
-      upvotes: 0,
-      is_accepted: false,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  // Get user info
+  const user = await studentService.getById(user_id);
   
-  if (error) throw error;
+  const answer = await firebaseQaService.createAnswer(question_id, {
+    authorId: user_id,
+    authorName: user?.name || "Anonymous",
+    authorAvatar: user?.avatar || null,
+    isVerifiedSenior: user?.isVerifiedSenior || false,
+    body,
+  });
   
-  // Increment answer count on question
-  await supabase.rpc("increment_answer_count", { question_id });
+  // Update user stats
+  await studentService.incrementStat(user_id, "answersGiven");
   
-  // Award XP to answerer
+  // Award reputation for answering
   await awardReputationPoints(user_id, 5, "answer_posted");
   
-  return data;
+  return answer;
 };
 
 // Get answers for a question
 export const getAnswers = async (questionId, { page = 1, pageSize = 50 }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const answers = await firebaseQaService.getAnswersForQuestion(questionId, {
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
   
-  const { data, error, count } = await supabase
-    .from("answers")
-    .select(`
-      *,
-      users(id, name, is_verified_senior, verified_college)
-    `, { count: "exact" })
-    .eq("question_id", questionId)
-    .order("is_accepted", { ascending: false })
-    .order("upvotes", { ascending: false })
-    .order("created_at", { ascending: true })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return {
+    data: answers,
+    total: answers.length,
+    page,
+    pageSize,
+  };
 };
 
 // Upvote a question or answer
 export const upvote = async (type, itemId, userId) => {
-  const table = type === "question" ? "question_votes" : "answer_votes";
-  const itemColumn = type === "question" ? "question_id" : "answer_id";
-  
-  // Check if already voted
-  const { data: existing } = await supabase
-    .from(table)
-    .select("id, vote_type")
-    .eq(itemColumn, itemId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  
-  if (existing) {
-    if (existing.vote_type === "up") {
-      // Remove vote
-      await supabase.from(table).delete().eq("id", existing.id);
-      await updateVoteCount(type, itemId, -1);
-      return { action: "removed" };
-    } else {
-      // Change from downvote to upvote
-      await supabase.from(table).update({ vote_type: "up" }).eq("id", existing.id);
-      await updateVoteCount(type, itemId, 2);
-      return { action: "changed" };
+  if (type === "question") {
+    const result = await firebaseQaService.voteQuestion(itemId, userId, "up");
+    return result;
+  } else {
+    const result = await firebaseQaService.voteAnswer(itemId, userId, "up");
+    
+    // Award reputation if upvoted (not removed)
+    if (result.action === "upvoted") {
+      const answer = await firebaseQaService.getAnswerById(itemId);
+      if (answer) {
+        await awardReputationPoints(answer.authorId, 2, "answer_upvoted");
+      }
     }
+    
+    return result;
   }
-  
-  // New upvote
-  await supabase.from(table).insert({
-    [itemColumn]: itemId,
-    user_id: userId,
-    vote_type: "up",
-    created_at: new Date().toISOString(),
-  });
-  await updateVoteCount(type, itemId, 1);
-  
-  return { action: "upvoted" };
 };
 
-// Helper to update vote count
-const updateVoteCount = async (type, itemId, delta) => {
-  const table = type === "question" ? "questions" : "answers";
-  await supabase.rpc("update_upvotes", { table_name: table, item_id: itemId, delta });
+// Downvote a question or answer
+export const downvote = async (type, itemId, userId) => {
+  if (type === "question") {
+    return await firebaseQaService.voteQuestion(itemId, userId, "down");
+  } else {
+    return await firebaseQaService.voteAnswer(itemId, userId, "down");
+  }
 };
 
 // Accept an answer (question owner only)
 export const acceptAnswer = async (answerId, questionOwnerId) => {
-  // Get the answer
-  const { data: answer, error: answerError } = await supabase
-    .from("answers")
-    .select("*, questions(user_id)")
-    .eq("id", answerId)
-    .single();
+  // Get the answer to find the question
+  const answer = await firebaseQaService.getAnswerById(answerId);
   
-  if (answerError) throw answerError;
+  if (!answer) {
+    throw new Error("Answer not found");
+  }
   
-  // Verify ownership
-  if (answer.questions.user_id !== questionOwnerId) {
+  // Get the question to verify ownership
+  const question = await firebaseQaService.getQuestionById(answer.questionId);
+  
+  if (!question) {
+    throw new Error("Question not found");
+  }
+  
+  if (question.authorId !== questionOwnerId) {
     throw new Error("Only question owner can accept answers");
   }
   
-  // Unaccept any previously accepted answer
-  await supabase
-    .from("answers")
-    .update({ is_accepted: false })
-    .eq("question_id", answer.question_id);
-  
-  // Accept this answer
-  const { data, error } = await supabase
-    .from("answers")
-    .update({ is_accepted: true })
-    .eq("id", answerId)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  
-  // Mark question as answered
-  await supabase
-    .from("questions")
-    .update({ status: "answered" })
-    .eq("id", answer.question_id);
+  // Accept the answer
+  const updated = await firebaseQaService.acceptAnswer(answer.questionId, answerId);
   
   // Award reputation to answerer
-  await awardReputationPoints(answer.user_id, 15, "answer_accepted");
+  await awardReputationPoints(answer.authorId, 15, "answer_accepted");
   
-  return data;
+  return updated;
 };
 
 // Award reputation points to user
 export const awardReputationPoints = async (userId, points, reason) => {
-  await supabase
-    .from("reputation_history")
-    .insert({
-      user_id: userId,
-      points,
-      reason,
-      created_at: new Date().toISOString(),
-    });
-  
-  // Update total reputation
-  await supabase.rpc("update_user_reputation", { user_id: userId, points });
+  // Update reputation
+  const newReputation = await studentService.updateReputation(userId, points);
   
   // Check for badge eligibility
-  await checkBadgeEligibility(userId);
+  await checkBadgeEligibility(userId, newReputation);
+  
+  return newReputation;
 };
 
 // Check and award badges based on reputation/activity
-const checkBadgeEligibility = async (userId) => {
-  const { data: user } = await supabase
-    .from("users")
-    .select("reputation_score")
-    .eq("id", userId)
-    .single();
+const checkBadgeEligibility = async (userId, reputation) => {
+  const badgesToAward = [];
   
-  if (!user) return;
+  if (reputation >= 100) badgesToAward.push("helpful_contributor");
+  if (reputation >= 500) badgesToAward.push("trusted_guide");
+  if (reputation >= 1000) badgesToAward.push("community_champion");
   
-  const badges = [];
-  
-  if (user.reputation_score >= 100) badges.push("helpful_contributor");
-  if (user.reputation_score >= 500) badges.push("trusted_guide");
-  if (user.reputation_score >= 1000) badges.push("community_champion");
-  
-  for (const badge of badges) {
-    await supabase
-      .from("user_badges")
-      .upsert({
-        user_id: userId,
-        badge_type: badge,
-        awarded_at: new Date().toISOString(),
-      }, { onConflict: "user_id,badge_type" });
+  for (const badgeType of badgesToAward) {
+    try {
+      await badgeService.awardBadge(userId, badgeType, { autoAwarded: true, reason: "reputation_milestone" });
+    } catch (e) {
+      // Badge might already be awarded
+    }
   }
+};
+
+// Update question
+export const updateQuestion = async (questionId, userId, updateData) => {
+  const question = await firebaseQaService.getQuestionById(questionId);
+  
+  if (!question) {
+    throw new Error("Question not found");
+  }
+  
+  if (question.authorId !== userId) {
+    throw new Error("You can only edit your own questions");
+  }
+  
+  return await firebaseQaService.updateQuestion(questionId, {
+    title: updateData.title,
+    body: updateData.body,
+    category: updateData.category,
+    tags: updateData.tags,
+  });
+};
+
+// Delete question
+export const deleteQuestion = async (questionId, userId, isAdmin = false) => {
+  const question = await firebaseQaService.getQuestionById(questionId);
+  
+  if (!question) {
+    throw new Error("Question not found");
+  }
+  
+  if (!isAdmin && question.authorId !== userId) {
+    throw new Error("You can only delete your own questions");
+  }
+  
+  await firebaseQaService.deleteQuestion(questionId);
+  return { success: true };
+};
+
+// Update answer
+export const updateAnswer = async (answerId, userId, body) => {
+  const answer = await firebaseQaService.getAnswerById(answerId);
+  
+  if (!answer) {
+    throw new Error("Answer not found");
+  }
+  
+  if (answer.authorId !== userId) {
+    throw new Error("You can only edit your own answers");
+  }
+  
+  return await firebaseQaService.updateAnswer(answerId, { body });
+};
+
+// Delete answer
+export const deleteAnswer = async (answerId, userId, isAdmin = false) => {
+  const answer = await firebaseQaService.getAnswerById(answerId);
+  
+  if (!answer) {
+    throw new Error("Answer not found");
+  }
+  
+  if (!isAdmin && answer.authorId !== userId) {
+    throw new Error("You can only delete your own answers");
+  }
+  
+  await firebaseQaService.deleteAnswer(answer.questionId, answerId);
+  return { success: true };
 };
 
 // Get question categories
 export const getCategories = async () => {
-  return [
-    { id: "academics", name: "Academics", description: "Courses, faculty, curriculum" },
-    { id: "placements", name: "Placements", description: "Jobs, packages, companies" },
-    { id: "hostel", name: "Hostel Life", description: "Accommodation, food, facilities" },
-    { id: "campus", name: "Campus Culture", description: "Events, clubs, social life" },
-    { id: "admissions", name: "Admissions", description: "Process, cutoffs, counseling" },
-    { id: "fees", name: "Fees & Scholarships", description: "Costs, financial aid" },
-    { id: "infrastructure", name: "Infrastructure", description: "Labs, library, sports" },
-    { id: "general", name: "General", description: "Other questions" },
-  ];
+  return CATEGORIES;
+};
+
+// Search questions
+export const searchQuestions = async (query, options = {}) => {
+  return await listQuestions({
+    ...options,
+    searchQuery: query,
+  });
+};
+
+// Get trending questions
+export const getTrendingQuestions = async (limit = 10, collegeId = null) => {
+  return await listQuestions({
+    pageSize: limit,
+    collegeId,
+    sortBy: "popular",
+  });
+};
+
+// Get unanswered questions
+export const getUnansweredQuestions = async (limit = 10, collegeId = null) => {
+  return await listQuestions({
+    pageSize: limit,
+    collegeId,
+    status: "open",
+    sortBy: "newest",
+  });
 };

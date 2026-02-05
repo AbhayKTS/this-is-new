@@ -6,6 +6,10 @@ import {
   compareColleges,
   getTrendingColleges,
   searchColleges,
+  createCollege,
+  updateCollege,
+  deleteCollege,
+  getCollegeStats,
 } from "../services/collegeService.js";
 import { success, created } from "../utils/response.js";
 
@@ -82,6 +86,49 @@ export const searchCollegesController = async (req, res, next) => {
     const { q, limit = 10 } = req.query;
     const data = await searchColleges(q, parseInt(limit, 10));
     success(res, data, "Search results fetched");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ============================================
+// ADMIN CONTROLLERS
+// ============================================
+
+export const createCollegeController = async (req, res, next) => {
+  try {
+    const data = await createCollege(req.body);
+    created(res, data, "College created successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateCollegeController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const data = await updateCollege(id, req.body);
+    success(res, data, "College updated successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteCollegeController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const data = await deleteCollege(id);
+    success(res, data, "College deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getCollegeStatsController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const data = await getCollegeStats(id);
+    success(res, data, "College stats fetched");
   } catch (err) {
     next(err);
   }

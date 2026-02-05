@@ -15,4 +15,13 @@ export const env = {
   supabaseKey: process.env.SUPABASE_KEY,
   supabaseServiceRole: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY,
   nodeEnv: process.env.NODE_ENV || "development",
+  
+  // OpenAI Configuration
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiModel: process.env.OPENAI_MODEL || "gpt-4o",
+  openaiMaxTokens: Number(process.env.OPENAI_MAX_TOKENS) || 1000,
+  
+  // AI Feature Flags
+  aiEnabled: process.env.AI_ENABLED !== "false",
+  aiModerationEnabled: process.env.AI_MODERATION_ENABLED !== "false",
 };

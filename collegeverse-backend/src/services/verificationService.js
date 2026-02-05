@@ -1,4 +1,9 @@
-import { supabase } from "../lib/supabaseClient.js";
+/**
+ * Verification Service - Firebase Implementation
+ * Handles senior verification workflow
+ */
+
+import { verificationService as firebaseVerificationService, studentService } from "./firebase/index.js";
 
 /**
  * Senior Verification Service
@@ -7,106 +12,122 @@ import { supabase } from "../lib/supabaseClient.js";
 
 // Submit a verification request with college ID proof
 export const submitVerification = async (payload) => {
-  const { user_id, college_id, college_name, graduation_year, id_proof_url, student_email } = payload;
+  const { user_id, college_id, college_name, graduation_year, id_proof_url, student_email, branch } = payload;
   
-  const { data, error } = await supabase
-    .from("senior_verifications")
-    .insert({
-      user_id,
-      college_id,
-      college_name,
-      graduation_year,
-      id_proof_url,
-      student_email,
-      status: "pending",
-      submitted_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  // Check if user already has a pending verification
+  const existingVerification = await firebaseVerificationService.getByUser(user_id);
   
-  if (error) throw error;
-  return data;
+  if (existingVerification && existingVerification.status === "pending") {
+    throw new Error("You already have a pending verification request");
+  }
+  
+  if (existingVerification && existingVerification.status === "approved") {
+    throw new Error("You are already a verified senior");
+  }
+  
+  // Create new verification request
+  const verification = await firebaseVerificationService.create({
+    userId: user_id,
+    collegeId: college_id,
+    collegeName: college_name,
+    idDocumentUrl: id_proof_url,
+    studentEmail: student_email,
+    graduationYear: parseInt(graduation_year),
+    branch: branch || null,
+    status: "pending",
+  });
+  
+  return verification;
 };
 
 // Get verification status for a user
 export const getVerificationStatus = async (userId) => {
-  const { data, error } = await supabase
-    .from("senior_verifications")
-    .select("*")
-    .eq("user_id", userId)
-    .order("submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const verification = await firebaseVerificationService.getByUser(userId);
   
-  if (error) throw error;
-  return data;
+  if (!verification) {
+    return {
+      exists: false,
+      status: null,
+      message: "No verification request found",
+    };
+  }
+  
+  return {
+    exists: true,
+    ...verification,
+  };
 };
 
 // Admin: List pending verifications
 export const listPendingVerifications = async ({ page = 1, pageSize = 20 }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const result = await firebaseVerificationService.listPending({
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
   
-  const { data, error, count } = await supabase
-    .from("senior_verifications")
-    .select("*, users(name, email)", { count: "exact" })
-    .eq("status", "pending")
-    .order("submitted_at", { ascending: true })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return {
+    data: result.data,
+    total: result.total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(result.total / pageSize),
+  };
 };
 
 // Admin: Approve or reject verification
-export const updateVerificationStatus = async (verificationId, status, reviewerNotes = null) => {
-  const updateData = {
-    status,
-    reviewed_at: new Date().toISOString(),
-  };
+export const updateVerificationStatus = async (verificationId, status, reviewerNotes = null, reviewerId = null) => {
+  // Update verification status
+  const verification = await firebaseVerificationService.updateStatus(
+    verificationId, 
+    status, 
+    reviewerId, 
+    reviewerNotes
+  );
   
-  if (reviewerNotes) {
-    updateData.reviewer_notes = reviewerNotes;
+  // If approved, upgrade user to verified senior
+  if (status === "approved") {
+    await studentService.update(verification.userId, {
+      role: "senior",
+      isVerifiedSenior: true,
+      verificationStatus: "approved",
+      verificationId: verificationId,
+      collegeId: verification.collegeId,
+      collegeName: verification.collegeName,
+      graduationYear: verification.graduationYear,
+      branch: verification.branch,
+    });
+  } else if (status === "rejected") {
+    // Update user's verification status
+    await studentService.update(verification.userId, {
+      verificationStatus: "rejected",
+      verificationId: verificationId,
+    });
   }
   
-  const { data, error } = await supabase
-    .from("senior_verifications")
-    .update(updateData)
-    .eq("id", verificationId)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  
-  // If approved, update user's verified status and award badge
-  if (status === "approved" && data) {
-    await supabase
-      .from("users")
-      .update({ is_verified_senior: true, verified_college: data.college_name })
-      .eq("id", data.user_id);
-    
-    // Award "Verified Senior" badge
-    await supabase
-      .from("user_badges")
-      .upsert({
-        user_id: data.user_id,
-        badge_type: "verified_senior",
-        awarded_at: new Date().toISOString(),
-      }, { onConflict: "user_id,badge_type" });
-  }
-  
-  return data;
+  return verification;
 };
 
 // Get all verified seniors for a college
 export const getVerifiedSeniors = async (collegeName) => {
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, name, email, verified_college, created_at")
-    .eq("is_verified_senior", true)
-    .eq("verified_college", collegeName)
-    .order("created_at", { ascending: false });
+  const seniors = await firebaseVerificationService.getApprovedByCollege(collegeName);
   
-  if (error) throw error;
-  return data;
+  // Enrich with student data
+  const enrichedSeniors = await Promise.all(
+    seniors.map(async (senior) => {
+      const student = await studentService.getById(senior.userId);
+      return {
+        ...senior,
+        student: student ? {
+          uid: student.uid,
+          name: student.name,
+          avatar: student.avatar,
+          reputation: student.reputation,
+          answersGiven: student.answersGiven,
+          reviewsWritten: student.reviewsWritten,
+        } : null,
+      };
+    })
+  );
+  
+  return enrichedSeniors;
 };

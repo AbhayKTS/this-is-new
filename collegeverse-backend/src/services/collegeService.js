@@ -1,222 +1,159 @@
-import { supabase } from "../lib/supabaseClient.js";
+﻿import { collegeService, comparisonsService, ratingsService, studentService } from './firebase/index.js';
 
-/**
- * College Service
- * Handles college information, ratings, and comparison features
- */
-
-// Get college by ID
 export const getCollege = async (collegeId) => {
-  const { data, error } = await supabase
-    .from("colleges")
-    .select("*")
-    .eq("id", collegeId)
-    .single();
-  
-  if (error) throw error;
-  return data;
+  const college = await collegeService.getById(collegeId);
+  if (!college) {
+    const error = new Error('College not found');
+    error.status = 404;
+    throw error;
+  }
+  return college;
 };
 
-// List all colleges with optional filters
-export const listColleges = async ({
-  page = 1,
-  pageSize = 20,
-  search = null,
-  location = null,
-  type = null,
-  sortBy = "name"
-}) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  
-  let query = supabase
-    .from("colleges")
-    .select("*", { count: "exact" });
+export const listColleges = async ({ page = 1, pageSize = 20, search = null, location = null, type = null, sortBy = 'name' }) => {
+  let colleges = await collegeService.getAll({ type: type || undefined, state: location || undefined });
   
   if (search) {
-    query = query.or(`name.ilike.%${search}%,location.ilike.%${search}%`);
+    const searchLower = search.toLowerCase();
+    colleges = colleges.filter(c => 
+      c.name.toLowerCase().includes(searchLower) ||
+      c.shortName?.toLowerCase().includes(searchLower) ||
+      c.city?.toLowerCase().includes(searchLower)
+    );
   }
   
-  if (location) {
-    query = query.ilike("location", `%${location}%`);
-  }
-  
-  if (type) {
-    query = query.eq("type", type);
-  }
-  
-  // Sort options
   switch (sortBy) {
-    case "rating":
-      query = query.order("overall_rating", { ascending: false });
+    case 'rating':
+      colleges.sort((a, b) => (b.overallRating || 0) - (a.overallRating || 0));
       break;
-    case "placements":
-      query = query.order("placement_rating", { ascending: false });
+    case 'placements':
+      colleges.sort((a, b) => (b.placementStats?.avgPackage || 0) - (a.placementStats?.avgPackage || 0));
       break;
     default:
-      query = query.order("name", { ascending: true });
+      colleges.sort((a, b) => a.name.localeCompare(b.name));
   }
   
-  const { data, error, count } = await query.range(from, to);
+  const total = colleges.length;
+  const from = (page - 1) * pageSize;
+  const paginatedColleges = colleges.slice(from, from + pageSize);
   
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return { data: paginatedColleges, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
 };
 
-// Get college ratings
 export const getCollegeRatings = async (collegeId) => {
-  const { data, error } = await supabase
-    .from("college_ratings")
-    .select("*")
-    .eq("college_id", collegeId);
-  
-  if (error) throw error;
-  
-  // Calculate average ratings
-  const ratings = {
-    academics: 0,
-    placements: 0,
-    hostel: 0,
-    campus_culture: 0,
-    infrastructure: 0,
-    value_for_money: 0,
-    overall: 0,
-    total_reviews: data.length,
-  };
-  
-  if (data.length > 0) {
-    const categories = ["academics", "placements", "hostel", "campus_culture", "infrastructure", "value_for_money"];
-    
-    for (const cat of categories) {
-      const sum = data.reduce((acc, r) => acc + (r[cat] || 0), 0);
-      ratings[cat] = Math.round((sum / data.length) * 10) / 10;
-    }
-    
-    ratings.overall = Math.round(
-      ((ratings.academics + ratings.placements + ratings.hostel + 
-        ratings.campus_culture + ratings.infrastructure + ratings.value_for_money) / 6) * 10
-    ) / 10;
-  }
-  
-  return ratings;
+  const ratings = await ratingsService.getByCollege(collegeId);
+  const distribution = await ratingsService.getRatingDistribution(collegeId);
+  const branchWise = await ratingsService.getBranchWiseRatings(collegeId);
+  return { ratings, distribution, branchWise };
 };
 
-// Submit a college rating (verified seniors only)
-export const submitCollegeRating = async (payload) => {
-  const { user_id, college_id, academics, placements, hostel, campus_culture, infrastructure, value_for_money, review_text } = payload;
+export const submitCollegeRating = async (ratingData) => {
+  const { college_id, user_id, ...ratings } = ratingData;
   
-  // Check if user is verified senior
-  const { data: user } = await supabase
-    .from("users")
-    .select("is_verified_senior, verified_college")
-    .eq("id", user_id)
-    .single();
+  // Increment user's ratings given count
+  await studentService.incrementStat(user_id, "ratingsGiven");
   
-  if (!user?.is_verified_senior) {
-    throw new Error("Only verified seniors can rate colleges");
-  }
-  
-  const { data, error } = await supabase
-    .from("college_ratings")
-    .upsert({
-      user_id,
-      college_id,
-      academics,
-      placements,
-      hostel,
-      campus_culture,
-      infrastructure,
-      value_for_money,
-      review_text,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id,college_id" })
-    .select()
-    .single();
-  
-  if (error) throw error;
-  
-  // Update college's cached ratings
-  await updateCollegeCachedRatings(college_id);
-  
-  return data;
+  return await ratingsService.submitRating(user_id, college_id, ratings);
 };
 
-// Update cached ratings on college table
-const updateCollegeCachedRatings = async (collegeId) => {
-  const ratings = await getCollegeRatings(collegeId);
-  
-  await supabase
-    .from("colleges")
-    .update({
-      overall_rating: ratings.overall,
-      academics_rating: ratings.academics,
-      placement_rating: ratings.placements,
-      hostel_rating: ratings.hostel,
-      campus_rating: ratings.campus_culture,
-      infrastructure_rating: ratings.infrastructure,
-      total_reviews: ratings.total_reviews,
-    })
-    .eq("id", collegeId);
-};
-
-// Compare multiple colleges
 export const compareColleges = async (collegeIds) => {
-  if (!Array.isArray(collegeIds) || collegeIds.length < 2) {
-    throw new Error("At least 2 colleges required for comparison");
+  return await comparisonsService.compare(collegeIds);
+};
+
+export const getTrendingColleges = async (limit = 10) => {
+  return await collegeService.getTopColleges(limit, 'overallRating');
+};
+
+export const searchColleges = async (query, limit = 10) => {
+  return await collegeService.search(query, { limit });
+};
+
+// ============================================
+// ADMIN OPERATIONS
+// ============================================
+
+// Create a new college (Admin only)
+export const createCollege = async (collegeData) => {
+  const { 
+    name, 
+    shortName, 
+    type, 
+    city, 
+    state, 
+    address,
+    website,
+    email,
+    phone,
+    establishedYear,
+    description,
+    branches,
+    facilities,
+    accreditation,
+    affiliatedUniversity,
+    placementStats,
+    images,
+  } = collegeData;
+  
+  // Check if college with same name exists
+  const existing = await collegeService.search(name, { limit: 1 });
+  if (existing.length > 0 && existing[0].name.toLowerCase() === name.toLowerCase()) {
+    throw new Error('College with this name already exists');
   }
   
-  if (collegeIds.length > 5) {
-    throw new Error("Maximum 5 colleges can be compared at once");
+  return await collegeService.create({
+    name,
+    shortName: shortName || null,
+    type: type || 'private',
+    city,
+    state,
+    address: address || null,
+    website: website || null,
+    email: email || null,
+    phone: phone || null,
+    establishedYear: establishedYear || null,
+    description: description || null,
+    branches: branches || [],
+    facilities: facilities || [],
+    accreditation: accreditation || [],
+    affiliatedUniversity: affiliatedUniversity || null,
+    placementStats: placementStats || null,
+    images: images || [],
+  });
+};
+
+// Update a college (Admin only)
+export const updateCollege = async (collegeId, updateData) => {
+  const college = await collegeService.getById(collegeId);
+  if (!college) {
+    throw new Error('College not found');
   }
   
-  const { data, error } = await supabase
-    .from("colleges")
-    .select("*")
-    .in("id", collegeIds);
+  return await collegeService.update(collegeId, updateData);
+};
+
+// Delete a college (Admin only)
+export const deleteCollege = async (collegeId) => {
+  const college = await collegeService.getById(collegeId);
+  if (!college) {
+    throw new Error('College not found');
+  }
   
-  if (error) throw error;
-  
-  // Get ratings for each college
-  const collegesWithRatings = await Promise.all(
-    data.map(async (college) => {
-      const ratings = await getCollegeRatings(college.id);
-      return { ...college, ratings };
-    })
-  );
+  await collegeService.delete(collegeId);
+  return { success: true, message: 'College deleted successfully' };
+};
+
+// Get college statistics (Admin dashboard)
+export const getCollegeStats = async (collegeId) => {
+  const college = await getCollege(collegeId);
+  const ratings = await getCollegeRatings(collegeId);
+  const verifiedSeniors = await studentService.getByCollege(collegeId, { isVerifiedSenior: true });
+  const students = await studentService.getByCollege(collegeId);
   
   return {
-    colleges: collegesWithRatings,
-    comparison_categories: [
-      { id: "academics", name: "Academics", description: "Teaching quality, curriculum, faculty" },
-      { id: "placements", name: "Placements", description: "Job opportunities, packages, companies" },
-      { id: "hostel", name: "Hostel Life", description: "Accommodation, food, facilities" },
-      { id: "campus_culture", name: "Campus Culture", description: "Events, clubs, diversity" },
-      { id: "infrastructure", name: "Infrastructure", description: "Labs, library, sports" },
-      { id: "value_for_money", name: "Value for Money", description: "Fees vs quality" },
-    ],
+    college,
+    totalRatings: ratings.ratings?.length || 0,
+    ratingDistribution: ratings.distribution,
+    verifiedSeniorsCount: verifiedSeniors.length,
+    totalStudents: students.length,
   };
-};
-
-// Get trending colleges (most discussed)
-export const getTrendingColleges = async (limit = 10) => {
-  const { data, error } = await supabase
-    .from("colleges")
-    .select("*")
-    .order("question_count", { ascending: false })
-    .limit(limit);
-  
-  if (error) throw error;
-  return data;
-};
-
-// Search colleges by name
-export const searchColleges = async (query, limit = 10) => {
-  const { data, error } = await supabase
-    .from("colleges")
-    .select("id, name, location, type")
-    .ilike("name", `%${query}%`)
-    .limit(limit);
-  
-  if (error) throw error;
-  return data;
 };

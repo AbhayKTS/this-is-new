@@ -1,9 +1,9 @@
-import { supabase } from "../lib/supabaseClient.js";
-
 /**
- * Badge and Reputation Service
+ * Badge and Reputation Service - Firebase Implementation
  * Handles user badges, reputation scores, and achievements
  */
+
+import { badgeService as firebaseBadgeService, studentService } from "./firebase/index.js";
 
 // Badge definitions
 export const BADGE_DEFINITIONS = {
@@ -14,6 +14,7 @@ export const BADGE_DEFINITIONS = {
     icon: "shield-check",
     color: "#10B981",
     category: "verification",
+    points: 50,
   },
   
   // Reputation badges
@@ -23,6 +24,7 @@ export const BADGE_DEFINITIONS = {
     icon: "heart",
     color: "#F59E0B",
     category: "reputation",
+    points: 10,
   },
   trusted_guide: {
     name: "Trusted Guide",
@@ -30,6 +32,7 @@ export const BADGE_DEFINITIONS = {
     icon: "star",
     color: "#8B5CF6",
     category: "reputation",
+    points: 25,
   },
   community_champion: {
     name: "Community Champion",
@@ -37,6 +40,7 @@ export const BADGE_DEFINITIONS = {
     icon: "crown",
     color: "#EF4444",
     category: "reputation",
+    points: 50,
   },
   
   // Activity badges
@@ -46,6 +50,7 @@ export const BADGE_DEFINITIONS = {
     icon: "help-circle",
     color: "#06B6D4",
     category: "activity",
+    points: 5,
   },
   first_answer: {
     name: "Helper",
@@ -53,6 +58,7 @@ export const BADGE_DEFINITIONS = {
     icon: "message-circle",
     color: "#14B8A6",
     category: "activity",
+    points: 5,
   },
   ten_answers: {
     name: "Knowledge Sharer",
@@ -60,6 +66,7 @@ export const BADGE_DEFINITIONS = {
     icon: "book-open",
     color: "#6366F1",
     category: "activity",
+    points: 15,
   },
   fifty_answers: {
     name: "Mentor",
@@ -67,6 +74,7 @@ export const BADGE_DEFINITIONS = {
     icon: "award",
     color: "#EC4899",
     category: "activity",
+    points: 30,
   },
   accepted_answer: {
     name: "Problem Solver",
@@ -74,6 +82,7 @@ export const BADGE_DEFINITIONS = {
     icon: "check-circle",
     color: "#22C55E",
     category: "activity",
+    points: 10,
   },
   
   // Community badges
@@ -83,6 +92,7 @@ export const BADGE_DEFINITIONS = {
     icon: "users",
     color: "#3B82F6",
     category: "community",
+    points: 20,
   },
   active_member: {
     name: "Active Member",
@@ -90,6 +100,25 @@ export const BADGE_DEFINITIONS = {
     icon: "zap",
     color: "#F97316",
     category: "community",
+    points: 15,
+  },
+  
+  // Review badges
+  first_review: {
+    name: "Reviewer",
+    description: "Wrote your first college review",
+    icon: "edit",
+    color: "#A855F7",
+    category: "review",
+    points: 10,
+  },
+  thorough_reviewer: {
+    name: "Thorough Reviewer",
+    description: "Wrote 5+ detailed reviews",
+    icon: "file-text",
+    color: "#0EA5E9",
+    category: "review",
+    points: 25,
   },
 };
 
@@ -103,118 +132,148 @@ export const getBadgeDefinitions = () => {
 
 // Get user's badges
 export const getUserBadges = async (userId) => {
-  const { data, error } = await supabase
-    .from("user_badges")
-    .select("badge_type, awarded_at")
-    .eq("user_id", userId)
-    .order("awarded_at", { ascending: false });
+  const userBadges = await firebaseBadgeService.getUserBadges(userId);
   
-  if (error) throw error;
-  
-  return data.map((badge) => ({
-    ...BADGE_DEFINITIONS[badge.badge_type],
-    id: badge.badge_type,
-    awarded_at: badge.awarded_at,
+  return userBadges.map((badge) => ({
+    ...BADGE_DEFINITIONS[badge.badgeId],
+    id: badge.badgeId,
+    awarded_at: badge.awardedAt,
   }));
 };
 
 // Award a badge to user
-export const awardBadge = async (userId, badgeType) => {
+export const awardBadge = async (userId, badgeType, metadata = {}) => {
   if (!BADGE_DEFINITIONS[badgeType]) {
     throw new Error(`Unknown badge type: ${badgeType}`);
   }
   
-  const { data, error } = await supabase
-    .from("user_badges")
-    .upsert({
-      user_id: userId,
-      badge_type: badgeType,
-      awarded_at: new Date().toISOString(),
-    }, { onConflict: "user_id,badge_type" })
-    .select()
-    .single();
+  const awarded = await firebaseBadgeService.awardBadge(userId, badgeType, metadata);
   
-  if (error) throw error;
-  return { ...BADGE_DEFINITIONS[badgeType], id: badgeType, awarded_at: data.awarded_at };
+  // Award bonus reputation for earning badge
+  const badgePoints = BADGE_DEFINITIONS[badgeType].points || 0;
+  if (badgePoints > 0) {
+    await studentService.updateReputation(userId, badgePoints);
+  }
+  
+  return { 
+    ...BADGE_DEFINITIONS[badgeType], 
+    id: badgeType, 
+    awarded_at: awarded.awardedAt,
+    pointsAwarded: badgePoints,
+  };
 };
 
-// Get user's reputation history
-export const getReputationHistory = async (userId, { page = 1, pageSize = 50 }) => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  
-  const { data, error, count } = await supabase
-    .from("reputation_history")
-    .select("*", { count: "exact" })
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+// Check if user has badge
+export const hasBadge = async (userId, badgeType) => {
+  return await firebaseBadgeService.hasBadge(userId, badgeType);
 };
 
-// Get user's total reputation
+// Get user's reputation
 export const getUserReputation = async (userId) => {
-  const { data, error } = await supabase
-    .from("users")
-    .select("reputation_score")
-    .eq("id", userId)
-    .single();
-  
-  if (error) throw error;
-  return data?.reputation_score || 0;
+  const user = await studentService.getById(userId);
+  return user?.reputation || 0;
 };
 
 // Get top users by reputation
 export const getTopContributors = async ({ page = 1, pageSize = 20, collegeId = null }) => {
+  const limit = pageSize;
+  const contributors = await studentService.getTopContributors(limit * page, collegeId);
+  
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const paginatedData = contributors.slice(from, from + pageSize);
   
-  let query = supabase
-    .from("users")
-    .select("id, name, email, reputation_score, is_verified_senior, verified_college", { count: "exact" })
-    .gt("reputation_score", 0);
-  
-  if (collegeId) {
-    query = query.eq("college_id", collegeId);
-  }
-  
-  const { data, error, count } = await query
-    .order("reputation_score", { ascending: false })
-    .range(from, to);
-  
-  if (error) throw error;
-  return { data, total: count || 0, page, pageSize };
+  return { 
+    data: paginatedData, 
+    total: contributors.length, 
+    page, 
+    pageSize,
+  };
 };
 
 // Check and award activity badges
 export const checkActivityBadges = async (userId) => {
-  // Get user stats
-  const [questionsResult, answersResult, acceptedResult, communitiesResult] = await Promise.all([
-    supabase.from("questions").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    supabase.from("answers").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    supabase.from("answers").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_accepted", true),
-    supabase.from("community_members").select("id", { count: "exact", head: true }).eq("user_id", userId),
-  ]);
+  const user = await studentService.getById(userId);
   
-  const questionCount = questionsResult.count || 0;
-  const answerCount = answersResult.count || 0;
-  const acceptedCount = acceptedResult.count || 0;
-  const communityCount = communitiesResult.count || 0;
+  if (!user) return [];
   
   const badgesToAward = [];
   
-  if (questionCount >= 1) badgesToAward.push("first_question");
-  if (answerCount >= 1) badgesToAward.push("first_answer");
-  if (answerCount >= 10) badgesToAward.push("ten_answers");
-  if (answerCount >= 50) badgesToAward.push("fifty_answers");
-  if (acceptedCount >= 1) badgesToAward.push("accepted_answer");
-  if (communityCount >= 3) badgesToAward.push("active_member");
+  // Check question badges
+  if (user.questionsAsked >= 1) {
+    if (!(await hasBadge(userId, "first_question"))) {
+      badgesToAward.push("first_question");
+    }
+  }
   
+  // Check answer badges
+  if (user.answersGiven >= 1) {
+    if (!(await hasBadge(userId, "first_answer"))) {
+      badgesToAward.push("first_answer");
+    }
+  }
+  if (user.answersGiven >= 10) {
+    if (!(await hasBadge(userId, "ten_answers"))) {
+      badgesToAward.push("ten_answers");
+    }
+  }
+  if (user.answersGiven >= 50) {
+    if (!(await hasBadge(userId, "fifty_answers"))) {
+      badgesToAward.push("fifty_answers");
+    }
+  }
+  
+  // Check review badges
+  if (user.reviewsWritten >= 1) {
+    if (!(await hasBadge(userId, "first_review"))) {
+      badgesToAward.push("first_review");
+    }
+  }
+  if (user.reviewsWritten >= 5) {
+    if (!(await hasBadge(userId, "thorough_reviewer"))) {
+      badgesToAward.push("thorough_reviewer");
+    }
+  }
+  
+  // Check reputation badges
+  if (user.reputation >= 100) {
+    if (!(await hasBadge(userId, "helpful_contributor"))) {
+      badgesToAward.push("helpful_contributor");
+    }
+  }
+  if (user.reputation >= 500) {
+    if (!(await hasBadge(userId, "trusted_guide"))) {
+      badgesToAward.push("trusted_guide");
+    }
+  }
+  if (user.reputation >= 1000) {
+    if (!(await hasBadge(userId, "community_champion"))) {
+      badgesToAward.push("community_champion");
+    }
+  }
+  
+  // Award all earned badges
   for (const badge of badgesToAward) {
-    await awardBadge(userId, badge);
+    try {
+      await awardBadge(userId, badge, { autoAwarded: true });
+    } catch (e) {
+      // Badge might already exist
+    }
   }
   
   return badgesToAward;
+};
+
+// Initialize default badges in database
+export const initializeBadges = async () => {
+  for (const [id, badge] of Object.entries(BADGE_DEFINITIONS)) {
+    await firebaseBadgeService.createBadge(id, {
+      name: badge.name,
+      description: badge.description,
+      icon: badge.icon,
+      color: badge.color,
+      category: badge.category,
+      points: badge.points,
+    });
+  }
+  return { success: true, count: Object.keys(BADGE_DEFINITIONS).length };
 };
