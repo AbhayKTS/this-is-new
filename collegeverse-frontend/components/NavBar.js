@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { Menu, X, Sparkles } from "lucide-react";
-import { AuthContext } from "./AuthProvider";
+import { useAuth } from "./AuthContext";
 
 const navLinks = [
   { href: "/communities", label: "Communities" },
@@ -12,14 +12,14 @@ const navLinks = [
 ];
 
 export default function NavBar() {
-  const { user, signOut, profile } = useContext(AuthContext);
+  const { user, userData, logout, isAuthenticated, role } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
   const closeMenu = () => setMenuOpen(false);
 
-  const portalHref = profile?.role === "recruiter" ? "/recruiter/dashboard" : profile?.role === "college" ? "/college/dashboard" : "/student/dashboard";
-  const portalLabel = profile?.role === "recruiter" ? "Recruiter Hub" : profile?.role === "college" ? "College Hub" : "Student Hub";
+  const portalHref = role === "recruiter" ? "/recruiter/dashboard" : role === "college" ? "/college/dashboard" : "/student/dashboard";
+  const portalLabel = role === "recruiter" ? "Recruiter Hub" : role === "college" ? "College Hub" : "Student Hub";
 
   return (
     <header className="site-nav" role="navigation">
@@ -43,12 +43,12 @@ export default function NavBar() {
           {user ? (
             <>
               <span className="nav-user" title={user.email}>
-                {profile?.full_name || user.email}
+                {userData?.full_name || user.email}
               </span>
               <Link href={portalHref} className="btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem" }}>
                 {portalLabel}
               </Link>
-              <button type="button" className="btn-ghost" onClick={signOut}>
+              <button type="button" className="btn-ghost" onClick={logout}>
                 Sign out
               </button>
             </>
@@ -80,7 +80,7 @@ export default function NavBar() {
             ))}
           </nav>
           <div className="nav-mobile-cta">
-            {user ? (
+            {isAuthenticated ? (
               <>
                 <Link href={portalHref} className="btn-primary" onClick={closeMenu}>
                   {portalLabel}
@@ -89,7 +89,7 @@ export default function NavBar() {
                   type="button"
                   className="btn-ghost"
                   onClick={() => {
-                    signOut();
+                    logout();
                     closeMenu();
                   }}
                 >
