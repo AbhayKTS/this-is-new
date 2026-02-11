@@ -1,580 +1,128 @@
-import { useState, useEffect } from "react";
+﻿import { useState } from "react";
+import { useRouter } from "next/router";
+import Link from "next/link";
 import NavBar from "../../components/NavBar";
 import Footer from "../../components/Footer";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
-import {
-  School,
-  Search,
-  MapPin,
-  Star,
-  Scale,
-  ChevronRight,
-  ChevronLeft,
-  Briefcase,
-  Home,
-  Users,
-  Building,
-  DollarSign,
-} from "lucide-react";
-import Link from "next/link";
+import { Star, MapPin, ArrowLeft, Scale, Trophy, Users, GraduationCap, Building2, CheckCircle, XCircle } from "lucide-react";
 
-const fallbackColleges = [
-  {
-    id: "1",
-    name: "Indian Institute of Technology Bombay",
-    location: "Mumbai, Maharashtra",
-    type: "IIT",
-    overall_rating: 4.8,
-    placement_rating: 4.9,
-    academics_rating: 4.7,
-    hostel_rating: 4.2,
-    campus_rating: 4.6,
-    infrastructure_rating: 4.5,
-    total_reviews: 245,
-  },
-  {
-    id: "2",
-    name: "Birla Institute of Technology and Science, Pilani",
-    location: "Pilani, Rajasthan",
-    type: "Private",
-    overall_rating: 4.6,
-    placement_rating: 4.5,
-    academics_rating: 4.6,
-    hostel_rating: 4.3,
-    campus_rating: 4.7,
-    infrastructure_rating: 4.4,
-    total_reviews: 189,
-  },
-  {
-    id: "3",
-    name: "National Institute of Technology Trichy",
-    location: "Tiruchirappalli, Tamil Nadu",
-    type: "NIT",
-    overall_rating: 4.5,
-    placement_rating: 4.4,
-    academics_rating: 4.5,
-    hostel_rating: 4.0,
-    campus_rating: 4.4,
-    infrastructure_rating: 4.3,
-    total_reviews: 156,
-  },
+const allColleges = [
+  { id: "1", name: "IIT Bombay", location: "Mumbai, MH", type: "IIT", rating: 4.7, placement: 4.9, academics: 4.7, hostel: 4.2, students: 12400, avgPkg: 21.5, highPkg: 280, placementRate: 96, courses: 95, clubs: 120, sports: true, wifi: true },
+  { id: "2", name: "IIT Delhi", location: "New Delhi", type: "IIT", rating: 4.8, placement: 4.8, academics: 4.8, hostel: 4.0, students: 11200, avgPkg: 22.0, highPkg: 300, placementRate: 97, courses: 88, clubs: 100, sports: true, wifi: true },
+  { id: "3", name: "BITS Pilani", location: "Pilani, RJ", type: "Private", rating: 4.5, placement: 4.5, academics: 4.6, hostel: 4.4, students: 9800, avgPkg: 18.5, highPkg: 150, placementRate: 93, courses: 72, clubs: 80, sports: true, wifi: true },
+  { id: "4", name: "NIT Trichy", location: "Tiruchirappalli, TN", type: "NIT", rating: 4.4, placement: 4.3, academics: 4.4, hostel: 3.8, students: 7600, avgPkg: 14.5, highPkg: 85, placementRate: 89, courses: 60, clubs: 65, sports: true, wifi: true },
+  { id: "5", name: "IIIT Hyderabad", location: "Hyderabad, TS", type: "IIIT", rating: 4.6, placement: 4.7, academics: 4.5, hostel: 3.9, students: 4200, avgPkg: 19.0, highPkg: 120, placementRate: 92, courses: 45, clubs: 40, sports: false, wifi: true },
+  { id: "6", name: "VIT Vellore", location: "Vellore, TN", type: "Private", rating: 4.2, placement: 4.0, academics: 4.1, hostel: 4.3, students: 22000, avgPkg: 8.5, highPkg: 50, placementRate: 82, courses: 110, clubs: 150, sports: true, wifi: true },
 ];
 
-const ratingCategories = [
-  { key: "academics_rating", label: "Academics", icon: School },
-  { key: "placement_rating", label: "Placements", icon: Briefcase },
-  { key: "hostel_rating", label: "Hostel", icon: Home },
-  { key: "campus_rating", label: "Campus Life", icon: Users },
-  { key: "infrastructure_rating", label: "Infrastructure", icon: Building },
+const metrics = [
+  { key: "rating", label: "Overall Rating", format: (v) => v + "/5", highlight: "max" },
+  { key: "placement", label: "Placement Rating", format: (v) => v + "/5", highlight: "max" },
+  { key: "academics", label: "Academics Rating", format: (v) => v + "/5", highlight: "max" },
+  { key: "hostel", label: "Hostel Rating", format: (v) => v + "/5", highlight: "max" },
+  { key: "students", label: "Total Students", format: (v) => v.toLocaleString(), highlight: "max" },
+  { key: "avgPkg", label: "Avg Package (LPA)", format: (v) => v + " LPA", highlight: "max" },
+  { key: "highPkg", label: "Highest Package (LPA)", format: (v) => v + " LPA", highlight: "max" },
+  { key: "placementRate", label: "Placement Rate", format: (v) => v + "%", highlight: "max" },
+  { key: "courses", label: "Courses Offered", format: (v) => v, highlight: "max" },
+  { key: "clubs", label: "Student Clubs", format: (v) => v, highlight: "max" },
+  { key: "sports", label: "Sports Facilities", format: (v) => v, highlight: "bool" },
+  { key: "wifi", label: "Campus WiFi", format: (v) => v, highlight: "bool" },
 ];
 
 export default function CompareColleges() {
-  const [selectedColleges, setSelectedColleges] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [allColleges, setAllColleges] = useState(fallbackColleges);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const idsParam = (router.query.ids || "1,2").split(",").slice(0, 3);
+  const [selectedIds, setSelectedIds] = useState(idsParam);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
+  const selected = selectedIds.map((id) => allColleges.find((c) => c.id === id)).filter(Boolean);
 
-    const fetchColleges = async () => {
-      try {
-        const { data } = await supabase
-          .from("colleges")
-          .select("*")
-          .order("overall_rating", { ascending: false })
-          .limit(50);
-        if (data?.length) setAllColleges(data);
-      } catch (err) {
-        console.warn("Failed to fetch colleges", err);
-      }
-    };
-
-    fetchColleges();
-  }, []);
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    const filtered = allColleges.filter(
-      (c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !selectedColleges.find((s) => s.id === c.id)
-    );
-    setSearchResults(filtered.slice(0, 5));
-  }, [searchQuery, allColleges, selectedColleges]);
-
-  const addCollege = (college) => {
-    if (selectedColleges.length >= 4) {
-      alert("You can compare up to 4 colleges");
-      return;
-    }
-    setSelectedColleges([...selectedColleges, college]);
-    setSearchQuery("");
-    setSearchResults([]);
-  };
-
-  const removeCollege = (collegeId) => {
-    setSelectedColleges(selectedColleges.filter((c) => c.id !== collegeId));
-  };
-
-  const getWinner = (key) => {
-    if (selectedColleges.length < 2) return null;
-    let maxVal = -1;
-    let winnerId = null;
-    selectedColleges.forEach((c) => {
-      if ((c[key] || 0) > maxVal) {
-        maxVal = c[key] || 0;
-        winnerId = c.id;
-      }
-    });
-    return winnerId;
+  const getBest = (key) => {
+    const vals = selected.map((c) => c[key]);
+    return Math.max(...vals);
   };
 
   return (
-    <div className="page-shell">
+    <div>
       <NavBar />
-      <main className="compare-page">
-        <div className="container">
-          <header className="compare-hero glass-panel">
-            <Link href="/colleges" className="back-link">
-              <ChevronLeft size={20} />
-              Back to Colleges
-            </Link>
-            <span className="badge-pill">
-              <Scale size={16} />
-              College Comparison
-            </span>
-            <h1>
-              Compare <span className="title-gradient">Colleges Side by Side</span>
-            </h1>
-            <p>
-              Select up to 4 colleges to compare based on real student ratings across academics, placements, hostel, and more.
-            </p>
-          </header>
+      <main style={{ minHeight: "100vh", paddingTop: "5rem" }}>
+        <div className="container" style={{ maxWidth: 1100, margin: "0 auto", padding: "2rem 1.5rem" }}>
+          <Link href="/explore" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-dim)", textDecoration: "none", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
+            <ArrowLeft size={16} /> Back to explore
+          </Link>
 
-          {/* College Selection */}
-          <section className="selection-section glass-panel">
-            <h2>Select Colleges to Compare</h2>
-            <div className="search-container">
-              <div className="search-bar">
-                <Search size={20} />
-                <input
-                  type="text"
-                  placeholder="Search for a college..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              {searchResults.length > 0 && (
-                <ul className="search-results">
-                  {searchResults.map((college) => (
-                    <li key={college.id} onClick={() => addCollege(college)}>
-                      <span className="college-name">{college.name}</span>
-                      <span className="college-location">{college.location}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          <div className="page-hero" style={{ marginBottom: "1.5rem" }}>
+            <span className="badge-pill"><Scale size={14} /> Compare</span>
+            <h1>Compare <span className="text-gradient">Colleges</span></h1>
+            <p>Side-by-side comparison of top institutions.</p>
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+            {allColleges.map((c) => {
+              const isSelected = selectedIds.includes(c.id);
+              return (
+                <button key={c.id} className={"filter-tab" + (isSelected ? " active" : "")} onClick={() => {
+                  if (isSelected) setSelectedIds(selectedIds.filter((x) => x !== c.id));
+                  else if (selectedIds.length < 3) setSelectedIds([...selectedIds, c.id]);
+                }}>{c.name}</button>
+              );
+            })}
+          </div>
+
+          {selected.length < 2 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon"><Scale size={28} /></div>
+              <h3>Select at least 2 colleges</h3>
+              <p>Choose colleges above to start comparing.</p>
             </div>
-
-            <div className="selected-colleges">
-              {selectedColleges.map((college) => (
-                <div key={college.id} className="selected-tag">
-                  <span>{college.name}</span>
-                  <button onClick={() => removeCollege(college.id)}>×</button>
-                </div>
-              ))}
-              {selectedColleges.length === 0 && (
-                <p className="hint">Search and add colleges above to start comparing</p>
-              )}
-            </div>
-          </section>
-
-          {/* Comparison Table */}
-          {selectedColleges.length >= 2 && (
-            <section className="comparison-section">
-              <div className="comparison-table">
-                {/* Header Row */}
-                <div className="table-row header-row">
-                  <div className="category-cell">Category</div>
-                  {selectedColleges.map((college) => (
-                    <div key={college.id} className="college-cell">
-                      <div className="college-header">
-                        <h3>{college.name}</h3>
-                        <span className="college-type">{college.type}</span>
-                        <div className="overall-rating">
-                          <Star size={16} className="star-icon" />
-                          <strong>{college.overall_rating?.toFixed(1) || "N/A"}</strong>
-                          <span>({college.total_reviews || 0} reviews)</span>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 160 }}>Metric</th>
+                    {selected.map((c) => (
+                      <th key={c.id} style={{ textAlign: "center" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
+                          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", fontWeight: 700, color: "white" }}>{c.name.charAt(0)}</div>
+                          <span style={{ fontSize: "0.82rem" }}>{c.name}</span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>{c.location}</span>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Rating Categories */}
-                {ratingCategories.map((category) => {
-                  const winnerId = getWinner(category.key);
-                  return (
-                    <div key={category.key} className="table-row">
-                      <div className="category-cell">
-                        <category.icon size={18} />
-                        {category.label}
-                      </div>
-                      {selectedColleges.map((college) => (
-                        <div
-                          key={college.id}
-                          className={`college-cell ${winnerId === college.id ? "winner" : ""}`}
-                        >
-                          <div className="rating-display">
-                            <div className="rating-bar">
-                              <div
-                                className="rating-fill"
-                                style={{ width: `${(college[category.key] || 0) * 20}%` }}
-                              />
-                            </div>
-                            <span className="rating-value">
-                              {college[category.key]?.toFixed(1) || "N/A"}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Verdict */}
-              <div className="verdict glass-panel">
-                <h3>Quick Verdict</h3>
-                <div className="verdict-grid">
-                  {ratingCategories.slice(0, 3).map((category) => {
-                    const winnerId = getWinner(category.key);
-                    const winner = selectedColleges.find((c) => c.id === winnerId);
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.map((m) => {
+                    const best = m.highlight === "max" ? getBest(m.key) : null;
                     return (
-                      <div key={category.key} className="verdict-item">
-                        <span className="verdict-label">Best for {category.label}</span>
-                        <strong>{winner?.name || "N/A"}</strong>
-                      </div>
+                      <tr key={m.key}>
+                        <td style={{ fontWeight: 500, color: "var(--text-muted)" }}>{m.label}</td>
+                        {selected.map((c) => {
+                          const val = c[m.key];
+                          const isBest = m.highlight === "max" && val === best;
+                          if (m.highlight === "bool") {
+                            return (
+                              <td key={c.id} style={{ textAlign: "center" }}>
+                                {val ? <CheckCircle size={18} style={{ color: "var(--success)" }} /> : <XCircle size={18} style={{ color: "var(--error)" }} />}
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key={c.id} style={{ textAlign: "center", color: isBest ? "var(--accent)" : "var(--text-muted)", fontWeight: isBest ? 700 : 400 }}>
+                              {m.format(val)} {isBest && <Trophy size={12} style={{ color: "var(--warning)", verticalAlign: "middle" }} />}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     );
                   })}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {selectedColleges.length < 2 && selectedColleges.length > 0 && (
-            <div className="hint-section glass-panel">
-              <p>Add at least one more college to start comparison</p>
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       </main>
       <Footer />
-
-      <style jsx>{`
-        .compare-page {
-          padding: 2rem 0;
-          min-height: calc(100vh - 80px);
-        }
-
-        .compare-hero {
-          padding: 2rem 3rem;
-          margin-bottom: 2rem;
-          text-align: center;
-        }
-
-        .back-link {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          color: rgba(202, 213, 255, 0.6);
-          text-decoration: none;
-          font-size: 0.9rem;
-          margin-bottom: 1rem;
-        }
-
-        .back-link:hover {
-          color: var(--accent-primary);
-        }
-
-        .compare-hero h1 {
-          font-size: clamp(1.5rem, 4vw, 2rem);
-          margin: 1rem 0;
-        }
-
-        .compare-hero p {
-          color: rgba(202, 213, 255, 0.7);
-          max-width: 600px;
-          margin: 0 auto;
-        }
-
-        .selection-section {
-          padding: 2rem;
-          margin-bottom: 2rem;
-        }
-
-        .selection-section h2 {
-          margin-bottom: 1.5rem;
-        }
-
-        .search-container {
-          position: relative;
-          max-width: 500px;
-        }
-
-        .search-bar {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          border-radius: 12px;
-          padding: 1rem 1.5rem;
-        }
-
-        .search-bar input {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: white;
-          font-size: 1rem;
-          outline: none;
-        }
-
-        .search-results {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: rgba(15, 23, 42, 0.95);
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          border-radius: 8px;
-          margin-top: 0.5rem;
-          list-style: none;
-          padding: 0;
-          z-index: 10;
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .search-results li {
-          padding: 1rem;
-          cursor: pointer;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-          transition: background 0.2s ease;
-        }
-
-        .search-results li:hover {
-          background: rgba(99, 102, 241, 0.1);
-        }
-
-        .search-results li:last-child {
-          border-bottom: none;
-        }
-
-        .search-results .college-name {
-          display: block;
-          font-weight: 500;
-        }
-
-        .search-results .college-location {
-          font-size: 0.8rem;
-          color: rgba(202, 213, 255, 0.5);
-        }
-
-        .selected-colleges {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.75rem;
-          margin-top: 1.5rem;
-        }
-
-        .selected-tag {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: rgba(99, 102, 241, 0.15);
-          border: 1px solid var(--accent-primary);
-          border-radius: 20px;
-          font-size: 0.9rem;
-        }
-
-        .selected-tag button {
-          background: none;
-          border: none;
-          color: rgba(202, 213, 255, 0.6);
-          font-size: 1.2rem;
-          cursor: pointer;
-          line-height: 1;
-        }
-
-        .selected-tag button:hover {
-          color: #ef4444;
-        }
-
-        .hint {
-          color: rgba(202, 213, 255, 0.5);
-          font-size: 0.9rem;
-        }
-
-        .comparison-section {
-          margin-bottom: 2rem;
-        }
-
-        .comparison-table {
-          background: rgba(15, 23, 42, 0.4);
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          border-radius: 16px;
-          overflow: hidden;
-        }
-
-        .table-row {
-          display: grid;
-          grid-template-columns: 180px repeat(${selectedColleges.length}, 1fr);
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .table-row:last-child {
-          border-bottom: none;
-        }
-
-        .header-row {
-          background: rgba(99, 102, 241, 0.1);
-        }
-
-        .category-cell {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 1rem 1.5rem;
-          font-weight: 500;
-          border-right: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .college-cell {
-          padding: 1rem 1.5rem;
-          border-right: 1px solid rgba(148, 163, 184, 0.1);
-          transition: background 0.2s ease;
-        }
-
-        .college-cell:last-child {
-          border-right: none;
-        }
-
-        .college-cell.winner {
-          background: rgba(34, 197, 94, 0.1);
-        }
-
-        .college-header h3 {
-          font-size: 1rem;
-          margin-bottom: 0.25rem;
-        }
-
-        .college-type {
-          display: inline-block;
-          padding: 0.2rem 0.5rem;
-          background: rgba(99, 102, 241, 0.2);
-          border-radius: 4px;
-          font-size: 0.7rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .overall-rating {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.85rem;
-        }
-
-        :global(.star-icon) {
-          color: #f59e0b;
-          fill: #f59e0b;
-        }
-
-        .overall-rating span {
-          color: rgba(202, 213, 255, 0.5);
-          font-size: 0.75rem;
-        }
-
-        .rating-display {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .rating-bar {
-          flex: 1;
-          height: 8px;
-          background: rgba(148, 163, 184, 0.1);
-          border-radius: 4px;
-          overflow: hidden;
-        }
-
-        .rating-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-          border-radius: 4px;
-        }
-
-        .rating-value {
-          font-weight: 600;
-          min-width: 40px;
-        }
-
-        .verdict {
-          margin-top: 2rem;
-          padding: 2rem;
-        }
-
-        .verdict h3 {
-          margin-bottom: 1.5rem;
-        }
-
-        .verdict-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 1.5rem;
-        }
-
-        .verdict-item {
-          padding: 1rem;
-          background: rgba(15, 23, 42, 0.4);
-          border-radius: 8px;
-        }
-
-        .verdict-label {
-          display: block;
-          font-size: 0.85rem;
-          color: rgba(202, 213, 255, 0.6);
-          margin-bottom: 0.5rem;
-        }
-
-        .hint-section {
-          text-align: center;
-          padding: 3rem;
-          color: rgba(202, 213, 255, 0.6);
-        }
-
-        @media (max-width: 768px) {
-          .table-row {
-            grid-template-columns: 120px repeat(${selectedColleges.length}, 1fr);
-          }
-          .category-cell {
-            padding: 0.75rem;
-            font-size: 0.85rem;
-          }
-          .college-cell {
-            padding: 0.75rem;
-          }
-        }
-      `}</style>
     </div>
   );
 }
