@@ -1,181 +1,360 @@
-import { useState, useContext, useMemo } from "react";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
-import { AuthContext } from "./AuthProvider";
+import { useState } from "react";import { useState, useContext, useMemo } from "react";
 
-const createCaptcha = () => {
-  const a = Math.floor(Math.random() * 6) + 4;
-  const b = Math.floor(Math.random() * 6) + 3;
-  return {
-    question: `${a} + ${b}`,
-    answer: a + b,
-  };
-};
+import { useAuth } from "./AuthContext";import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
-const COLLEGE_DIRECTORY = [
-  { label: "IIT Bombay", value: "iitb", domains: ["iitb.ac.in"] },
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";import { AuthContext } from "./AuthProvider";
+
+
+
+export default function LoginForm({ role = "student", heading, subtitle, onAuthenticated }) {const createCaptcha = () => {
+
+  const { login, register } = useAuth();  const a = Math.floor(Math.random() * 6) + 4;
+
+  const [mode, setMode] = useState("login"); // login | register | forgot  const b = Math.floor(Math.random() * 6) + 3;
+
+  const [email, setEmail] = useState("");  return {
+
+  const [password, setPassword] = useState("");    question: `${a} + ${b}`,
+
+  const [fullName, setFullName] = useState("");    answer: a + b,
+
+  const [confirmPassword, setConfirmPassword] = useState("");  };
+
+  const [showPassword, setShowPassword] = useState(false);};
+
+  const [loading, setLoading] = useState(false);
+
+  const [error, setError] = useState("");const COLLEGE_DIRECTORY = [
+
+  const [success, setSuccess] = useState("");  { label: "IIT Bombay", value: "iitb", domains: ["iitb.ac.in"] },
+
   { label: "IISc Bangalore", value: "iisc", domains: ["iisc.ac.in"] },
-  { label: "IIT Delhi", value: "iitd", domains: ["iitd.ac.in"] },
+
+  const { forgotPassword } = useAuth();  { label: "IIT Delhi", value: "iitd", domains: ["iitd.ac.in"] },
+
   { label: "Delhi University", value: "du", domains: ["du.ac.in"] },
-  { label: "NIT Trichy", value: "nitt", domains: ["nitt.edu"] },
-  { label: "VIT Vellore", value: "vit", domains: ["vit.ac.in"] },
-  { label: "BITS Pilani", value: "bits", domains: ["pilani.bits-pilani.ac.in", "goa.bits-pilani.ac.in", "hyderabad.bits-pilani.ac.in"] },
-  { label: "Manipal University", value: "manipal", domains: ["manipal.edu"] },
-  { label: "SRM University", value: "srm", domains: ["srmist.edu.in"] },
-  { label: "IIIT Hyderabad", value: "iiith", domains: ["iiit.ac.in"] },
-];
 
-const PERSONAL_EMAIL_PROVIDERS = [
-  "gmail.com",
-  "outlook.com",
-  "hotmail.com",
-  "yahoo.com",
-  "live.com",
+  const handleLogin = async (e) => {  { label: "NIT Trichy", value: "nitt", domains: ["nitt.edu"] },
+
+    e.preventDefault();  { label: "VIT Vellore", value: "vit", domains: ["vit.ac.in"] },
+
+    setError(""); setSuccess("");  { label: "BITS Pilani", value: "bits", domains: ["pilani.bits-pilani.ac.in", "goa.bits-pilani.ac.in", "hyderabad.bits-pilani.ac.in"] },
+
+    if (!email || !password) { setError("Please fill in all fields."); return; }  { label: "Manipal University", value: "manipal", domains: ["manipal.edu"] },
+
+    setLoading(true);  { label: "SRM University", value: "srm", domains: ["srmist.edu.in"] },
+
+    const result = await login(email, password);  { label: "IIIT Hyderabad", value: "iiith", domains: ["iiit.ac.in"] },
+
+    setLoading(false);];
+
+    if (result.success) {
+
+      setSuccess("Login successful! Redirecting…");const PERSONAL_EMAIL_PROVIDERS = [
+
+      onAuthenticated?.();  "gmail.com",
+
+    } else {  "outlook.com",
+
+      setError(result.message || "Login failed. Please check your credentials.");  "hotmail.com",
+
+    }  "yahoo.com",
+
+  };  "live.com",
+
   "icloud.com",
-  "protonmail.com",
-];
 
-const sanitizePhone = (value) => value.replace(/[^0-9+]/g, "");
+  const handleRegister = async (e) => {  "protonmail.com",
 
-const LoginForm = ({ heading, subtitle, role, glowLabel, showHeader = true, showGlowLabel = true, onAuthenticated }) => {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [collegeName, setCollegeName] = useState("");
-  const [selectedCollege, setSelectedCollege] = useState("");
-  const [adminCode, setAdminCode] = useState("");
-  const [organization, setOrganization] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [lastPhoneNumber, setLastPhoneNumber] = useState("");
-  const [message, setMessage] = useState("");
+    e.preventDefault();];
+
+    setError(""); setSuccess("");
+
+    if (!fullName || !email || !password || !confirmPassword) { setError("Please fill in all fields."); return; }const sanitizePhone = (value) => value.replace(/[^0-9+]/g, "");
+
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }const LoginForm = ({ heading, subtitle, role, glowLabel, showHeader = true, showGlowLabel = true, onAuthenticated }) => {
+
+    setLoading(true);  const [fullName, setFullName] = useState("");
+
+    const result = await register(email, password, { full_name: fullName, role });  const [email, setEmail] = useState("");
+
+    setLoading(false);  const [collegeName, setCollegeName] = useState("");
+
+    if (result.success) {  const [selectedCollege, setSelectedCollege] = useState("");
+
+      setSuccess("Account created! You can now sign in.");  const [adminCode, setAdminCode] = useState("");
+
+      setMode("login");  const [organization, setOrganization] = useState("");
+
+    } else {  const [designation, setDesignation] = useState("");
+
+      setError(result.message || "Registration failed. Try another email.");  const [phoneNumber, setPhoneNumber] = useState("");
+
+    }  const [lastPhoneNumber, setLastPhoneNumber] = useState("");
+
+  };  const [message, setMessage] = useState("");
+
   const [error, setError] = useState("");
-  const [awaitingOtp, setAwaitingOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [captcha, setCaptcha] = useState(() => createCaptcha());
-  const [captchaInput, setCaptchaInput] = useState("");
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [otpChannel, setOtpChannel] = useState("email");
-  const [lastOtpChannel, setLastOtpChannel] = useState("email");
 
-  const { signInWithGoogle, signInWithLinkedIn } = useContext(AuthContext);
-  const supabaseReady = isSupabaseConfigured;
-  const loading = sendingOtp || verifyingOtp;
+  const handleForgot = async (e) => {  const [awaitingOtp, setAwaitingOtp] = useState(false);
+
+    e.preventDefault();  const [otpCode, setOtpCode] = useState("");
+
+    setError(""); setSuccess("");  const [captcha, setCaptcha] = useState(() => createCaptcha());
+
+    if (!email) { setError("Enter your email address."); return; }  const [captchaInput, setCaptchaInput] = useState("");
+
+    setLoading(true);  const [sendingOtp, setSendingOtp] = useState(false);
+
+    const result = await forgotPassword(email);  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+    setLoading(false);  const [otpChannel, setOtpChannel] = useState("email");
+
+    if (result.success) {  const [lastOtpChannel, setLastOtpChannel] = useState("email");
+
+      setSuccess("Password reset email sent! Check your inbox.");
+
+    } else {  const { signInWithGoogle, signInWithLinkedIn } = useContext(AuthContext);
+
+      setError(result.message || "Could not send reset email.");  const supabaseReady = isSupabaseConfigured;
+
+    }  const loading = sendingOtp || verifyingOtp;
+
+  };
 
   const isStudent = role === "student";
-  const isCollege = role === "college";
-  const isRecruiter = role === "recruiter";
-  const selectedChannelLabel = isStudent && otpChannel === "phone" ? "Phone" : "Email";
 
-  const derivedCollegeDomains = useMemo(() => {
-    if (!selectedCollege) return [];
-    const matched = COLLEGE_DIRECTORY.find((item) => item.value === selectedCollege);
-    return matched ? matched.domains : [];
-  }, [selectedCollege]);
+  return (  const isCollege = role === "college";
 
-  const persistRoleSelection = () => {
-    if (typeof window !== "undefined" && role) {
-      window.localStorage.setItem("cv-role", role);
+    <div className="auth-form">  const isRecruiter = role === "recruiter";
+
+      {/* Tabs */}  const selectedChannelLabel = isStudent && otpChannel === "phone" ? "Phone" : "Email";
+
+      {mode !== "forgot" && (
+
+        <div className="auth-tabs">  const derivedCollegeDomains = useMemo(() => {
+
+          <button type="button" className={`auth-tab ${mode === "login" ? "active" : ""}`} onClick={() => { setMode("login"); setError(""); setSuccess(""); }}>    if (!selectedCollege) return [];
+
+            Sign In    const matched = COLLEGE_DIRECTORY.find((item) => item.value === selectedCollege);
+
+          </button>    return matched ? matched.domains : [];
+
+          <button type="button" className={`auth-tab ${mode === "register" ? "active" : ""}`} onClick={() => { setMode("register"); setError(""); setSuccess(""); }}>  }, [selectedCollege]);
+
+            Create Account
+
+          </button>  const persistRoleSelection = () => {
+
+        </div>    if (typeof window !== "undefined" && role) {
+
+      )}      window.localStorage.setItem("cv-role", role);
+
     }
-  };
 
-  const recordIntent = async (intentSource) => {
-    if (!supabaseReady || !email) return;
+      {/* Feedback */}  };
 
-    try {
-      const payload = {
-        email,
-        full_name: fullName,
-        college: selectedCollege ? COLLEGE_DIRECTORY.find((c) => c.value === selectedCollege)?.label || collegeName : collegeName,
-        role,
+      {error && (
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", background: "rgba(244,63,94,0.1)", border: "1px solid rgba(244,63,94,0.25)", color: "#fb7185", fontSize: "0.85rem" }}>  const recordIntent = async (intentSource) => {
+
+          <AlertCircle size={16} /> {error}    if (!supabaseReady || !email) return;
+
+        </div>
+
+      )}    try {
+
+      {success && (      const payload = {
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399", fontSize: "0.85rem" }}>        email,
+
+          <CheckCircle size={16} /> {success}        full_name: fullName,
+
+        </div>        college: selectedCollege ? COLLEGE_DIRECTORY.find((c) => c.value === selectedCollege)?.label || collegeName : collegeName,
+
+      )}        role,
+
         intent_source: intentSource,
-        last_seen_at: new Date().toISOString(),
-        phone: phoneNumber ? sanitizePhone(phoneNumber) : null,
-      };
 
-      const { error: intentError } = await supabase
-        .from("profile_intents")
-        .upsert(payload, { onConflict: "email" });
+      {/* LOGIN FORM */}        last_seen_at: new Date().toISOString(),
 
-      if (intentError) {
-        console.warn("Unable to capture intent", intentError);
-      }
-    } catch (err) {
-      console.warn("Intent capture failed", err);
-    }
-  };
+      {mode === "login" && (        phone: phoneNumber ? sanitizePhone(phoneNumber) : null,
 
-  const getSelectedCollegeName = () => {
-    if (!selectedCollege) return collegeName.trim();
-    const matched = COLLEGE_DIRECTORY.find((item) => item.value === selectedCollege);
-    return matched?.label || collegeName.trim();
-  };
+        <form onSubmit={handleLogin} style={{ display: "grid", gap: "1rem" }}>      };
 
-  const validateStudentEmail = () => {
-    const domainPart = email.split("@")[1] || "";
-    if (!domainPart) return "Enter your college email.";
+          <div className="form-group">
 
-    const lowered = domainPart.toLowerCase();
-    if (derivedCollegeDomains.length && derivedCollegeDomains.some((item) => lowered.endsWith(item))) {
+            <label className="form-label">Email</label>      const { error: intentError } = await supabase
+
+            <div style={{ position: "relative" }}>        .from("profile_intents")
+
+              <Mail size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />        .upsert(payload, { onConflict: "email" });
+
+              <input className="form-input" type="email" placeholder="you@college.edu" value={email} onChange={(e) => setEmail(e.target.value)} style={{ paddingLeft: "2.5rem" }} />
+
+            </div>      if (intentError) {
+
+          </div>        console.warn("Unable to capture intent", intentError);
+
+          <div className="form-group">      }
+
+            <label className="form-label">Password</label>    } catch (err) {
+
+            <div style={{ position: "relative" }}>      console.warn("Intent capture failed", err);
+
+              <Lock size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />    }
+
+              <input className="form-input" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ paddingLeft: "2.5rem", paddingRight: "2.5rem" }} />  };
+
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}>
+
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}  const getSelectedCollegeName = () => {
+
+              </button>    if (!selectedCollege) return collegeName.trim();
+
+            </div>    const matched = COLLEGE_DIRECTORY.find((item) => item.value === selectedCollege);
+
+          </div>    return matched?.label || collegeName.trim();
+
+          <button type="button" onClick={() => { setMode("forgot"); setError(""); setSuccess(""); }} style={{ alignSelf: "flex-end", background: "none", border: "none", color: "var(--primary-hover)", fontSize: "0.82rem", cursor: "pointer" }}>  };
+
+            Forgot password?
+
+          </button>  const validateStudentEmail = () => {
+
+          <button type="submit" className="btn-primary btn-lg" disabled={loading} style={{ width: "100%" }}>    const domainPart = email.split("@")[1] || "";
+
+            {loading ? "Signing in…" : <><ArrowRight size={18} /> Sign In</>}    if (!domainPart) return "Enter your college email.";
+
+          </button>
+
+        </form>    const lowered = domainPart.toLowerCase();
+
+      )}    if (derivedCollegeDomains.length && derivedCollegeDomains.some((item) => lowered.endsWith(item))) {
+
       return "";
-    }
 
-    if (lowered.endsWith(".edu") || lowered.endsWith(".ac.in")) {
-      return "";
-    }
+      {/* REGISTER FORM */}    }
 
-    const directoryMatch = COLLEGE_DIRECTORY.some((item) => item.domains.some((domain) => lowered.endsWith(domain)));
-    if (directoryMatch) {
-      return "";
-    }
+      {mode === "register" && (
 
-    return "Only college-issued emails are accepted (e.g. name@iitb.ac.in).";
-  };
+        <form onSubmit={handleRegister} style={{ display: "grid", gap: "1rem" }}>    if (lowered.endsWith(".edu") || lowered.endsWith(".ac.in")) {
 
-  const validateCollegeEmail = () => {
-    if (!selectedCollege) {
-      return "Select your college to continue.";
-    }
-    if (selectedCollege === "other" && !collegeName.trim()) {
-      return "Enter your college name.";
-    }
-    const domainPart = email.split("@")[1] || "";
-    if (!domainPart) return "Enter your official college email.";
-    const lowered = domainPart.toLowerCase();
-    const domainMatch = derivedCollegeDomains.some((domain) => lowered.endsWith(domain));
-    if (!domainMatch && !(lowered.endsWith(".edu") || lowered.endsWith(".ac.in"))) {
-      return "Please use the official domain linked to your college.";
-    }
-    if (!adminCode.trim()) {
-      return "Admin verification code is required.";
-    }
-    return "";
-  };
+          <div className="form-group">      return "";
 
-  const validateRecruiterEmail = () => {
-    const domainPart = email.split("@")[1] || "";
+            <label className="form-label">Full Name</label>    }
+
+            <div style={{ position: "relative" }}>
+
+              <User size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />    const directoryMatch = COLLEGE_DIRECTORY.some((item) => item.domains.some((domain) => lowered.endsWith(domain)));
+
+              <input className="form-input" type="text" placeholder="Your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ paddingLeft: "2.5rem" }} />    if (directoryMatch) {
+
+            </div>      return "";
+
+          </div>    }
+
+          <div className="form-group">
+
+            <label className="form-label">Email</label>    return "Only college-issued emails are accepted (e.g. name@iitb.ac.in).";
+
+            <div style={{ position: "relative" }}>  };
+
+              <Mail size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
+
+              <input className="form-input" type="email" placeholder="you@college.edu" value={email} onChange={(e) => setEmail(e.target.value)} style={{ paddingLeft: "2.5rem" }} />  const validateCollegeEmail = () => {
+
+            </div>    if (!selectedCollege) {
+
+          </div>      return "Select your college to continue.";
+
+          <div className="form-group">    }
+
+            <label className="form-label">Password</label>    if (selectedCollege === "other" && !collegeName.trim()) {
+
+            <div style={{ position: "relative" }}>      return "Enter your college name.";
+
+              <Lock size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />    }
+
+              <input className="form-input" type={showPassword ? "text" : "password"} placeholder="Min 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} style={{ paddingLeft: "2.5rem" }} />    const domainPart = email.split("@")[1] || "";
+
+            </div>    if (!domainPart) return "Enter your official college email.";
+
+          </div>    const lowered = domainPart.toLowerCase();
+
+          <div className="form-group">    const domainMatch = derivedCollegeDomains.some((domain) => lowered.endsWith(domain));
+
+            <label className="form-label">Confirm Password</label>    if (!domainMatch && !(lowered.endsWith(".edu") || lowered.endsWith(".ac.in"))) {
+
+            <div style={{ position: "relative" }}>      return "Please use the official domain linked to your college.";
+
+              <Lock size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />    }
+
+              <input className="form-input" type={showPassword ? "text" : "password"} placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ paddingLeft: "2.5rem" }} />    if (!adminCode.trim()) {
+
+            </div>      return "Admin verification code is required.";
+
+          </div>    }
+
+          <button type="submit" className="btn-primary btn-lg" disabled={loading} style={{ width: "100%" }}>    return "";
+
+            {loading ? "Creating account…" : <><ArrowRight size={18} /> Create Account</>}  };
+
+          </button>
+
+        </form>  const validateRecruiterEmail = () => {
+
+      )}    const domainPart = email.split("@")[1] || "";
+
     if (!domainPart) {
-      return "Enter your company email.";
-    }
-    const lowered = domainPart.toLowerCase();
-    if (PERSONAL_EMAIL_PROVIDERS.includes(lowered)) {
-      return "Company email required. Personal email domains are not supported.";
-    }
-    if (!organization.trim()) {
-      return "Enter your organization name.";
-    }
-    if (!designation.trim()) {
-      return "Enter your designation.";
-    }
-    return "";
-  };
 
-  const validateForm = async () => {
-    if (!supabaseReady) {
-      return "Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_KEY in .env.local";
-    }
+      {/* FORGOT PASSWORD */}      return "Enter your company email.";
 
-    if (!fullName.trim()) return "Enter your full name.";
-    if (!email.trim()) return "Enter your email address.";
+      {mode === "forgot" && (    }
+
+        <form onSubmit={handleForgot} style={{ display: "grid", gap: "1rem" }}>    const lowered = domainPart.toLowerCase();
+
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", fontWeight: 600, color: "white", textAlign: "center" }}>Reset Password</h2>    if (PERSONAL_EMAIL_PROVIDERS.includes(lowered)) {
+
+          <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", textAlign: "center" }}>Enter your email and we'll send you a reset link.</p>      return "Company email required. Personal email domains are not supported.";
+
+          <div className="form-group">    }
+
+            <label className="form-label">Email</label>    if (!organization.trim()) {
+
+            <div style={{ position: "relative" }}>      return "Enter your organization name.";
+
+              <Mail size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />    }
+
+              <input className="form-input" type="email" placeholder="you@college.edu" value={email} onChange={(e) => setEmail(e.target.value)} style={{ paddingLeft: "2.5rem" }} />    if (!designation.trim()) {
+
+            </div>      return "Enter your designation.";
+
+          </div>    }
+
+          <button type="submit" className="btn-primary btn-lg" disabled={loading} style={{ width: "100%" }}>    return "";
+
+            {loading ? "Sending…" : "Send Reset Link"}  };
+
+          </button>
+
+          <button type="button" onClick={() => { setMode("login"); setError(""); setSuccess(""); }} style={{ background: "none", border: "none", color: "var(--primary-hover)", fontSize: "0.85rem", cursor: "pointer", textAlign: "center" }}>  const validateForm = async () => {
+
+            ← Back to sign in    if (!supabaseReady) {
+
+          </button>      return "Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_KEY in .env.local";
+
+        </form>    }
+
+      )}
+
+    </div>    if (!fullName.trim()) return "Enter your full name.";
+
+  );    if (!email.trim()) return "Enter your email address.";
+
+}
 
     if (isStudent) {
       const studentError = validateStudentEmail();

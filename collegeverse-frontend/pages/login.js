@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import NavBar from "../components/NavBar";
 import LoginForm from "../components/LoginForm";
-import { GraduationCap, Building2, BriefcaseBusiness } from "lucide-react";
+import { useAuth } from "../components/AuthContext";
+import { GraduationCap, Building2, BriefcaseBusiness, X } from "lucide-react";
 
 const LOGIN_CARDS = [
   {
@@ -42,74 +44,37 @@ const LOGIN_CARDS = [
   },
 ];
 
-const RoleLoginTrigger = ({ role, heading, subtitle, glowLabel }) => {
-  const [open, setOpen] = useState(false);
+export default function Login() {
+  const { isAuthenticated, role } = useAuth();
+  const router = useRouter();
+  const [modalRole, setModalRole] = useState(null);
 
   useEffect(() => {
-    if (!open || typeof window === "undefined" || typeof document === "undefined") {
-      return undefined;
+    if (isAuthenticated) {
+      const dest = role === "recruiter" ? "/recruiter/dashboard" : role === "college" ? "/college/dashboard" : "/student/dashboard";
+      router.push(dest);
     }
+  }, [isAuthenticated, role, router]);
 
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    const previousOverflow = document.body.style.overflow;
+  // Escape key closes modal
+  useEffect(() => {
+    if (!modalRole) return;
+    const handleKey = (e) => { if (e.key === "Escape") setModalRole(null); };
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
+    window.addEventListener("keydown", handleKey);
+    return () => { window.removeEventListener("keydown", handleKey); document.body.style.overflow = ""; };
+  }, [modalRole]);
 
   return (
-    <>
-      <button type="button" className="cta-main" onClick={() => setOpen(true)}>
-        Sign in / Sign up
-      </button>
-
-      {open && (
-        <div className="login-modal" role="dialog" aria-modal="true" aria-labelledby={`${role}-modal-title`}>
-          <div className="login-modal__backdrop" onClick={() => setOpen(false)} />
-          <div className="login-modal__panel glass-panel">
-            <header className="login-modal__header">
-              <h2 id={`${role}-modal-title`} className="font-display">{heading}</h2>
-              <p>{subtitle}</p>
-            </header>
-            <LoginForm
-              role={role}
-              heading={heading}
-              subtitle={subtitle}
-              glowLabel={glowLabel}
-              showHeader={false}
-              showGlowLabel={false}
-              onAuthenticated={() => setOpen(false)}
-            />
-            <button type="button" className="btn-ghost login-modal__close" onClick={() => setOpen(false)}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
-
-export default function Login() {
-  return (
-    <div className="login-galaxy">
+    <div className="page-shell">
       <NavBar />
-      <main className="login-shell">
-        <div className="login-nebula" aria-hidden="true" />
-        <div className="login-constellation" aria-hidden="true" />
+      <main className="login-page">
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <header className="login-header">
-            <span className="badge-pill">Choose your portal</span>
-            <h1 className="font-display">Step into your CollegeVerse dimension</h1>
+            <span className="badge-pill"><span className="badge-dot" /> Choose your portal</span>
+            <h1 className="font-display">
+              Step into your <span className="text-gradient">CollegeVerse</span> dimension
+            </h1>
             <p>
               Tailored dashboards keep students, college admins, and recruiters in sync. Pick the card that matches your mission and authenticate in seconds.
             </p>
@@ -117,30 +82,47 @@ export default function Login() {
 
           <section className="login-grid">
             {LOGIN_CARDS.map((card) => (
-              <article key={card.role} className="login-orbital">
-                <div className="orbital-header">
-                  <span className="orbital-icon">{card.icon}</span>
-                  <h2 className="font-display">{card.heading}</h2>
-                  <span className="orbital-glow">{card.glowLabel}</span>
-                  <p>{card.subtitle}</p>
-                  <ul>
-                    {card.checklist.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <RoleLoginTrigger
-                  role={card.role}
-                  heading={card.heading}
-                  subtitle={card.subtitle}
-                  glowLabel={card.glowLabel}
-                />
+              <article key={card.role} className="login-card animate-in">
+                <span className="login-card-icon">{card.icon}</span>
+                <span className="glow-label">{card.glowLabel}</span>
+                <h2>{card.heading}</h2>
+                <p>{card.subtitle}</p>
+                <ul>
+                  {card.checklist.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <button type="button" className="btn-primary" style={{ marginTop: "auto" }} onClick={() => setModalRole(card.role)}>
+                  Sign in / Sign up
+                </button>
               </article>
             ))}
           </section>
         </div>
       </main>
+
+      {/* AUTH MODAL */}
+      {modalRole && (
+        <div className="login-modal" role="dialog" aria-modal="true">
+          <div className="login-modal-backdrop" onClick={() => setModalRole(null)} />
+          <div className="login-modal-panel glass-panel">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.35rem", fontWeight: 700, color: "white" }}>
+                {LOGIN_CARDS.find((c) => c.role === modalRole)?.heading}
+              </h2>
+              <button type="button" className="btn-icon btn-ghost" onClick={() => setModalRole(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <LoginForm
+              role={modalRole}
+              heading={LOGIN_CARDS.find((c) => c.role === modalRole)?.heading}
+              subtitle={LOGIN_CARDS.find((c) => c.role === modalRole)?.subtitle}
+              onAuthenticated={() => setModalRole(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
