@@ -1,452 +1,72 @@
-import { useState, useEffect, useContext } from "react";
-import NavBar from "../components/NavBar";
-import Footer from "../components/Footer";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
-import { AuthContext } from "../components/AuthProvider";
-import {
-  Users,
-  Search,
-  Plus,
-  MessageSquare,
-  ArrowRight,
-  Shield,
-  TrendingUp,
-} from "lucide-react";
-import Link from "next/link";
+﻿import { useState } from "react";
+import DashboardLayout from "../components/DashboardLayout";
+import { useAuth } from "../components/AuthContext";
+import { Users, Search, Plus, MessageSquare, ArrowRight, TrendingUp } from "lucide-react";
 
-const fallbackCommunities = [
-  {
-    id: "1",
-    name: "IIT Bombay Hub",
-    description: "Connect with students and alumni from IIT Bombay",
-    member_count: 2450,
-    cover_image_url: null,
-    colleges: { name: "IIT Bombay", location: "Mumbai" },
-  },
-  {
-    id: "2",
-    name: "BITS Pilani Network",
-    description: "Official community for BITS Pilani students",
-    member_count: 1820,
-    cover_image_url: null,
-    colleges: { name: "BITS Pilani", location: "Rajasthan" },
-  },
-  {
-    id: "3",
-    name: "NIT Trichy Connect",
-    description: "Share experiences and get guidance from NIT Trichy seniors",
-    member_count: 1340,
-    cover_image_url: null,
-    colleges: { name: "NIT Trichy", location: "Tamil Nadu" },
-  },
-  {
-    id: "4",
-    name: "VIT Vellore Community",
-    description: "For all VITians - current students and alumni",
-    member_count: 3200,
-    cover_image_url: null,
-    colleges: { name: "VIT Vellore", location: "Tamil Nadu" },
-  },
+const demoCommunities = [
+  { id: "1", name: "IIT Bombay Hub", description: "Connect with students and alumni from IIT Bombay", members: 2450, college: "IIT Bombay", location: "Mumbai", posts: 340, trending: true },
+  { id: "2", name: "BITS Pilani Network", description: "Official community for BITS Pilani students", members: 1820, college: "BITS Pilani", location: "Rajasthan", posts: 210, trending: false },
+  { id: "3", name: "NIT Trichy Connect", description: "Share experiences and get guidance from NIT Trichy seniors", members: 1340, college: "NIT Trichy", location: "Tamil Nadu", posts: 180, trending: true },
+  { id: "4", name: "VIT Vellore Community", description: "For all VITians - current students and alumni", members: 3200, college: "VIT Vellore", location: "Tamil Nadu", posts: 520, trending: false },
+  { id: "5", name: "Delhi University Forum", description: "DU students unite - academics, events, and more", members: 2800, college: "Delhi University", location: "Delhi", posts: 410, trending: true },
+  { id: "6", name: "SRM Universe", description: "The official SRM student community hub", members: 1960, college: "SRM Chennai", location: "Chennai", posts: 290, trending: false },
 ];
 
 export default function Communities() {
-  const { user } = useContext(AuthContext);
-  const [communities, setCommunities] = useState(fallbackCommunities);
+  const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [myCommunities, setMyCommunities] = useState([]);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchCommunities = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("communities")
-          .select("*, colleges(name, location)")
-          .order("member_count", { ascending: false })
-          .limit(20);
-
-        if (!error && data?.length) {
-          setCommunities(data);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch communities", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCommunities();
-  }, []);
-
-  const filteredCommunities = communities.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = demoCommunities.filter((c) =>
+    !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.college.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="page-shell">
-      <NavBar />
-      <main className="communities-page">
-        <div className="container">
-          {/* Hero Section */}
-          <header className="communities-hero glass-panel">
-            <div className="hero-content">
-              <span className="badge-pill">
-                <Users size={16} />
-                College Communities
-              </span>
-              <h1>
-                Connect with Your <span className="title-gradient">College Tribe</span>
-              </h1>
-              <p>
-                Join verified college communities. Ask questions, share experiences, and get honest guidance from seniors who've been there.
-              </p>
-              <div className="search-bar">
-                <Search size={20} />
-                <input
-                  type="text"
-                  placeholder="Search communities by college name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="hero-stats">
-              <div className="stat-item">
-                <strong>150+</strong>
-                <span>Active Communities</span>
-              </div>
-              <div className="stat-item">
-                <strong>25K+</strong>
-                <span>Verified Seniors</span>
-              </div>
-              <div className="stat-item">
-                <strong>100K+</strong>
-                <span>Questions Answered</span>
-              </div>
-            </div>
-          </header>
-
-          {/* Community Grid */}
-          <section className="communities-grid">
-            <div className="section-header">
-              <h2>Popular Communities</h2>
-              <Link href="/communities/create" className="cta-outline small">
-                <Plus size={18} />
-                Create Community
-              </Link>
-            </div>
-
-            {loading ? (
-              <div className="loading-state">
-                <div className="spinner" />
-                <p>Loading communities...</p>
-              </div>
-            ) : (
-              <div className="card-grid">
-                {filteredCommunities.map((community) => (
-                  <CommunityCard key={community.id} community={community} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Why Join Section */}
-          <section className="why-join glass-panel">
-            <h2>Why Join a College Community?</h2>
-            <div className="benefits-grid">
-              <div className="benefit-item">
-                <Shield size={32} className="benefit-icon" />
-                <h3>Verified Seniors</h3>
-                <p>Get guidance from college ID verified seniors only</p>
-              </div>
-              <div className="benefit-item">
-                <MessageSquare size={32} className="benefit-icon" />
-                <h3>Honest Answers</h3>
-                <p>Real experiences, not sugar-coated advertisements</p>
-              </div>
-              <div className="benefit-item">
-                <TrendingUp size={32} className="benefit-icon" />
-                <h3>Make Better Decisions</h3>
-                <p>Compare colleges based on actual student feedback</p>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-      <Footer />
-
-      <style jsx>{`
-        .communities-page {
-          padding: 2rem 0;
-          min-height: calc(100vh - 80px);
-        }
-
-        .communities-hero {
-          padding: 3rem;
-          margin-bottom: 3rem;
-          text-align: center;
-        }
-
-        .communities-hero h1 {
-          font-size: clamp(2rem, 5vw, 3rem);
-          margin: 1rem 0;
-        }
-
-        .communities-hero p {
-          color: rgba(202, 213, 255, 0.78);
-          max-width: 600px;
-          margin: 0 auto 2rem;
-          line-height: 1.7;
-        }
-
-        .search-bar {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          border-radius: 12px;
-          padding: 1rem 1.5rem;
-          max-width: 500px;
-          margin: 0 auto;
-        }
-
-        .search-bar input {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: white;
-          font-size: 1rem;
-          outline: none;
-        }
-
-        .search-bar input::placeholder {
-          color: rgba(148, 163, 184, 0.6);
-        }
-
-        .hero-stats {
-          display: flex;
-          justify-content: center;
-          gap: 3rem;
-          margin-top: 2rem;
-          padding-top: 2rem;
-          border-top: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .stat-item {
-          text-align: center;
-        }
-
-        .stat-item strong {
-          display: block;
-          font-size: 1.5rem;
-          color: var(--accent-primary);
-        }
-
-        .stat-item span {
-          font-size: 0.875rem;
-          color: rgba(202, 213, 255, 0.6);
-        }
-
-        .section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 2rem;
-        }
-
-        .section-header h2 {
-          margin: 0;
-        }
-
-        .card-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 1.5rem;
-        }
-
-        .why-join {
-          margin-top: 4rem;
-          padding: 3rem;
-          text-align: center;
-        }
-
-        .why-join h2 {
-          margin-bottom: 2rem;
-        }
-
-        .benefits-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 2rem;
-        }
-
-        .benefit-item {
-          padding: 1.5rem;
-        }
-
-        .benefit-icon {
-          color: var(--accent-primary);
-          margin-bottom: 1rem;
-        }
-
-        .benefit-item h3 {
-          margin-bottom: 0.5rem;
-        }
-
-        .benefit-item p {
-          color: rgba(202, 213, 255, 0.7);
-          font-size: 0.9rem;
-        }
-
-        .loading-state {
-          text-align: center;
-          padding: 4rem;
-        }
-
-        .spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid rgba(148, 163, 184, 0.2);
-          border-top-color: var(--accent-primary);
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .cta-outline.small {
-          padding: 0.5rem 1rem;
-          font-size: 0.875rem;
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function CommunityCard({ community }) {
-  return (
-    <article className="community-card tilt-card">
-      <div className="card-header">
-        <div className="college-avatar">
-          {community.colleges?.name?.charAt(0) || "C"}
-        </div>
-        <div className="college-info">
-          <h3>{community.name}</h3>
-          <span className="college-location">
-            {community.colleges?.name} • {community.colleges?.location}
-          </span>
-        </div>
-      </div>
-      <p className="card-description">{community.description}</p>
-      <div className="card-footer">
-        <span className="member-count">
-          <Users size={16} />
-          {community.member_count?.toLocaleString()} members
-        </span>
-        <Link href={`/communities/${community.id}`} className="join-btn">
-          View
-          <ArrowRight size={16} />
-        </Link>
+    <DashboardLayout title="Communities">
+      <div className="page-hero">
+        <span className="badge-pill"><Users size={14} /> Campus Hubs</span>
+        <h1>Find your <span className="text-gradient">community</span></h1>
+        <p>Join college hubs, connect with peers, and stay updated with campus life.</p>
       </div>
 
-      <style jsx>{`
-        .community-card {
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          border-radius: 16px;
-          padding: 1.5rem;
-          transition: all 0.3s ease;
-        }
+      <div className="filter-bar">
+        <div className="search-bar">
+          <Search size={16} />
+          <input type="text" placeholder="Search communities..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </div>
+        {isAuthenticated && (
+          <button className="btn-primary btn-sm" style={{ marginLeft: "auto" }}><Plus size={16} /> Create Community</button>
+        )}
+      </div>
 
-        .community-card:hover {
-          border-color: var(--accent-primary);
-          transform: translateY(-4px);
-        }
-
-        .card-header {
-          display: flex;
-          gap: 1rem;
-          margin-bottom: 1rem;
-        }
-
-        .college-avatar {
-          width: 48px;
-          height: 48px;
-          border-radius: 12px;
-          background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 1.25rem;
-        }
-
-        .college-info h3 {
-          margin: 0;
-          font-size: 1.1rem;
-        }
-
-        .college-location {
-          font-size: 0.8rem;
-          color: rgba(202, 213, 255, 0.6);
-        }
-
-        .card-description {
-          color: rgba(202, 213, 255, 0.75);
-          font-size: 0.9rem;
-          line-height: 1.6;
-          margin-bottom: 1rem;
-        }
-
-        .card-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 1rem;
-          border-top: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .member-count {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.85rem;
-          color: rgba(202, 213, 255, 0.6);
-        }
-
-        .join-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: rgba(99, 102, 241, 0.15);
-          border: 1px solid var(--accent-primary);
-          border-radius: 8px;
-          color: var(--accent-primary);
-          font-size: 0.85rem;
-          font-weight: 500;
-          text-decoration: none;
-          transition: all 0.2s ease;
-        }
-
-        .join-btn:hover {
-          background: var(--accent-primary);
-          color: white;
-        }
-      `}</style>
-    </article>
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon"><Users size={28} /></div>
+          <h3>No communities found</h3>
+          <p>Try a different search term.</p>
+        </div>
+      ) : (
+        <div className="item-grid">
+          {filtered.map((c) => (
+            <div key={c.id} className="item-card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+                <div style={{ width: 48, height: 48, borderRadius: "var(--radius-md)", background: "linear-gradient(135deg, var(--primary), var(--secondary))", display: "grid", placeItems: "center", color: "white", fontWeight: 700 }}>
+                  {c.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+                </div>
+                {c.trending && <span className="status-pill info"><TrendingUp size={12} /> Trending</span>}
+              </div>
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "white", margin: "0 0 0.35rem" }}>{c.name}</h3>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.7, marginBottom: "1rem" }}>{c.description}</p>
+              <div style={{ display: "flex", gap: "1.25rem", fontSize: "0.8rem", color: "var(--text-dim)", marginBottom: "1rem" }}>
+                <span><Users size={14} style={{ verticalAlign: "middle" }} /> {c.members.toLocaleString()} members</span>
+                <span><MessageSquare size={14} style={{ verticalAlign: "middle" }} /> {c.posts} posts</span>
+              </div>
+              <button className="btn-secondary btn-sm" style={{ width: "100%" }}>
+                Join Community <ArrowRight size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

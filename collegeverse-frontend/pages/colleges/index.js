@@ -1,310 +1,83 @@
-import { useContext, useEffect, useMemo, useState } from "react";
-import { CalendarClock, GraduationCap, ShieldCheck, Users } from "lucide-react";
-import NavBar from "../../components/NavBar";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
-import { AuthContext } from "../../components/AuthProvider";
+﻿import { useState } from "react";
+import DashboardLayout from "../../components/DashboardLayout";
+import Link from "next/link";
+import { GraduationCap, Search, MapPin, Users, Star, ArrowRight, Filter } from "lucide-react";
 
-const iconMap = {
-  users: Users,
-  placements: GraduationCap,
-  recruiters: ShieldCheck,
-  events: CalendarClock,
-};
-
-const fallbackMetrics = [
-  { key: "verified_students", label: "Verified students", value: "4,320", delta: "+8.6%", icon: "users" },
-  { key: "placements", label: "Placements this year", value: "612", delta: "+14.2%", icon: "placements" },
-  { key: "recruiters", label: "Active recruiters", value: "39", delta: "+3", icon: "recruiters" },
-  { key: "events", label: "Upcoming events", value: "6", delta: "Next 30 days", icon: "events" },
+const demoColleges = [
+  { id: "1", name: "IIT Bombay", location: "Mumbai, MH", students: 12400, rating: 4.9, tags: ["IIT", "Engineering"], logo: null },
+  { id: "2", name: "IIT Delhi", location: "New Delhi", students: 11200, rating: 4.8, tags: ["IIT", "Engineering"], logo: null },
+  { id: "3", name: "BITS Pilani", location: "Pilani, RJ", students: 9800, rating: 4.7, tags: ["Private", "Engineering"], logo: null },
+  { id: "4", name: "NIT Trichy", location: "Tiruchirappalli, TN", students: 7600, rating: 4.5, tags: ["NIT", "Engineering"], logo: null },
+  { id: "5", name: "IIIT Hyderabad", location: "Hyderabad, TS", students: 4200, rating: 4.6, tags: ["IIIT", "CS"], logo: null },
+  { id: "6", name: "VIT Vellore", location: "Vellore, TN", students: 22000, rating: 4.3, tags: ["Private", "Multi"], logo: null },
+  { id: "7", name: "SRM Chennai", location: "Chennai, TN", students: 18000, rating: 4.2, tags: ["Private", "Multi"], logo: null },
+  { id: "8", name: "DTU Delhi", location: "New Delhi", students: 8500, rating: 4.4, tags: ["State", "Engineering"], logo: null },
 ];
 
-const fallbackVerificationQueue = [
-  { id: "queue-ishita", name: "Ishita Singh", program: "BBA '26", status: "Documents pending" },
-  { id: "queue-raghav", name: "Raghav Bansal", program: "MBA '25", status: "Ready to approve" },
-  { id: "queue-tanvi", name: "Tanvi Iyer", program: "B.Tech '27", status: "Needs review" },
-];
-
-const fallbackEvents = [
-  { id: "event-ai", title: "AI Hiring Day", date: "14 Sep", owner: "Tech Council" },
-  { id: "event-design", title: "Design Hiring Studio", date: "21 Sep", owner: "Creative Labs" },
-  { id: "event-fintech", title: "Fintech Superweek", date: "28 Sep", owner: "E-Cell" },
-];
-
-const fallbackStandouts = [
-  { id: "student-arjun", name: "Arjun Patel", domain: "Product", score: 9420, microgigs: 6 },
-  { id: "student-sana", name: "Sana Mir", domain: "AI & Data", score: 9185, microgigs: 8 },
-  { id: "student-dev", name: "Dev Mehra", domain: "Marketing", score: 9010, microgigs: 5 },
-  { id: "student-khushi", name: "Khushi Jain", domain: "Consulting", score: 8960, microgigs: 7 },
-];
+const allTags = Array.from(new Set(demoColleges.flatMap((c) => c.tags))).sort();
 
 export default function Colleges() {
-  const { profile } = useContext(AuthContext);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTag, setActiveTag] = useState("all");
 
-  const [metricCards, setMetricCards] = useState(fallbackMetrics);
-  const [verificationQueue, setVerificationQueue] = useState(fallbackVerificationQueue);
-  const [events, setEvents] = useState(fallbackEvents);
-  const [standoutStudents, setStandoutStudents] = useState(fallbackStandouts);
-  const [placementForecast, setPlacementForecast] = useState("87%");
-  const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [error, setError] = useState("");
-
-  const collegeIdentifier = useMemo(() => {
-    if (!profile) return null;
-    return profile.college_id || profile.college_slug || profile.college || profile.id;
-  }, [profile]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !collegeIdentifier) {
-      setLoading(false);
-      if (!isSupabaseConfigured) {
-        setError("");
-      }
-      return;
-    }
-
-    let ignore = false;
-
-    const fetchDashboard = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const [metricsRes, queueRes, eventsRes, standoutsRes, highlightsRes] = await Promise.all([
-          supabase
-            .from("college_metrics")
-            .select("key, label, value, delta, icon")
-            .eq("college_id", collegeIdentifier)
-            .order("display_order", { ascending: true }),
-          supabase
-            .from("student_verifications")
-            .select("id, name, program, status")
-            .eq("college_id", collegeIdentifier)
-            .order("created_at", { ascending: true })
-            .limit(6),
-          supabase
-            .from("college_events")
-            .select("id, title, event_date, owner")
-            .eq("college_id", collegeIdentifier)
-            .order("event_date", { ascending: true })
-            .limit(6),
-          supabase
-            .from("standout_students")
-            .select("id, name, domain, score, microgigs")
-            .eq("college_id", collegeIdentifier)
-            .order("score", { ascending: false })
-            .limit(8),
-          supabase
-            .from("college_highlights")
-            .select("placement_forecast")
-            .eq("college_id", collegeIdentifier)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]);
-
-        if (ignore) return;
-
-        if (!metricsRes.error && metricsRes.data) {
-          const parsedMetrics = metricsRes.data.map((metric) => ({
-            key: metric.key,
-            label: metric.label || "Metric",
-            value: metric.value || "-",
-            delta: metric.delta || "",
-            icon: metric.icon || "users",
-          }));
-          setMetricCards(parsedMetrics.length ? parsedMetrics : fallbackMetrics);
-        } else if (metricsRes.error) {
-          console.warn("College metrics fetch error", metricsRes.error);
-          setMetricCards(fallbackMetrics);
-        }
-
-        if (!queueRes.error && queueRes.data) {
-          setVerificationQueue(queueRes.data.length ? queueRes.data : []);
-        } else if (queueRes.error) {
-          console.warn("Verification queue fetch error", queueRes.error);
-          setVerificationQueue(fallbackVerificationQueue);
-        }
-
-        if (!eventsRes.error && eventsRes.data) {
-          const parsedEvents = eventsRes.data.map((event) => ({
-            id: event.id,
-            title: event.title,
-            date: event.event_date || "TBA",
-            owner: event.owner || "Campus team",
-          }));
-          setEvents(parsedEvents.length ? parsedEvents : []);
-        } else if (eventsRes.error) {
-          console.warn("Events fetch error", eventsRes.error);
-          setEvents(fallbackEvents);
-        }
-
-        if (!standoutsRes.error && standoutsRes.data) {
-          setStandoutStudents(standoutsRes.data.length ? standoutsRes.data : []);
-        } else if (standoutsRes.error) {
-          console.warn("Standout students fetch error", standoutsRes.error);
-          setStandoutStudents(fallbackStandouts);
-        }
-
-        if (!highlightsRes.error && highlightsRes.data) {
-          setPlacementForecast(highlightsRes.data.placement_forecast || "87%");
-        } else if (highlightsRes.error) {
-          console.warn("Highlights fetch error", highlightsRes.error);
-        }
-
-        const encounteredErrors = [metricsRes.error, queueRes.error, eventsRes.error, standoutsRes.error, highlightsRes.error].filter(Boolean);
-        if (encounteredErrors.length) {
-          setError("Some widgets failed to sync with Supabase. Showing cached data.");
-        }
-      } catch (err) {
-        if (!ignore) {
-          console.warn("College dashboard fetch failed", err);
-          setError("Unable to reach Supabase right now. Showing cached data.");
-          setMetricCards(fallbackMetrics);
-          setVerificationQueue(fallbackVerificationQueue);
-          setEvents(fallbackEvents);
-          setStandoutStudents(fallbackStandouts);
-          setPlacementForecast("87%");
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchDashboard();
-
-    return () => {
-      ignore = true;
-    };
-  }, [collegeIdentifier]);
-
-  const MetricIcon = (iconKey) => iconMap[iconKey] || Users;
+  const filtered = demoColleges.filter((c) => {
+    if (activeTag !== "all" && !c.tags.includes(activeTag)) return false;
+    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
 
   return (
-    <div className="page-shell">
-      <NavBar />
-      <main className="page-main">
-        <section className="dashboard-hero glass-panel">
-          <div>
-            <span className="badge-pill">College Command Center</span>
-            <h1 className="font-display">Guide your cohort to the next big opportunity</h1>
-            <p>
-              Track verification pipelines, surface standout talent, and automate recruiter handoffs in one futuristic workspace.
-            </p>
-          </div>
-          <div className="hero-metric">
-            <strong>{placementForecast}</strong>
-            <span>placement forecast for this batch</span>
-          </div>
-        </section>
+    <DashboardLayout title="Colleges">
+      <div className="page-hero">
+        <span className="badge-pill"><GraduationCap size={14} /> Explore</span>
+        <h1>Discover <span className="text-gradient">Colleges</span></h1>
+        <p>Browse top institutions across India. Compare, connect, and find your fit.</p>
+      </div>
 
-        {error && (
-          <p style={{ color: "#f87171", margin: 0 }}>{error}</p>
-        )}
+      <div className="filter-bar">
+        <div className="search-bar">
+          <Search size={16} />
+          <input type="text" placeholder="Search colleges..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </div>
+      </div>
 
-        <section className="metric-grid">
-          {metricCards.map((metric) => {
-            const Icon = MetricIcon(metric.icon);
-            return (
-              <article key={metric.label} className="metric-card glass-panel">
-                <div className="metric-icon">
-                  <Icon size={22} />
-                </div>
-                <div className="metric-copy">
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                </div>
-                <span className="metric-delta">{metric.delta}</span>
-              </article>
-            );
-          })}
-        </section>
+      <div className="filter-bar" style={{ paddingTop: 0 }}>
+        <Filter size={14} style={{ color: "var(--text-dim)" }} />
+        <button className={"filter-tab" + (activeTag === "all" ? " active" : "")} onClick={() => setActiveTag("all")}>All</button>
+        {allTags.map((tag) => (
+          <button key={tag} className={"filter-tab" + (activeTag === tag ? " active" : "")} onClick={() => setActiveTag(tag)}>{tag}</button>
+        ))}
+      </div>
 
-        <section className="college-grid">
-          <article className="verification-hub glass-panel">
-            <header>
-              <h2 className="font-display">Verification queue</h2>
-              <button type="button" className="cta-outline">
-                Review all
-              </button>
-            </header>
-            <div className="queue-list">
-              {(verificationQueue.length ? verificationQueue : fallbackVerificationQueue).map((student) => (
-                <div key={student.id || student.name} className="queue-card">
-                  <div>
-                    <h3>{student.name}</h3>
-                    <span>{student.program}</span>
-                  </div>
-                  <button type="button" className="cta-outline">
-                    {student.status}
-                  </button>
-                </div>
-              ))}
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon"><GraduationCap size={28} /></div>
+          <h3>No colleges found</h3>
+          <p>Try a different search or filter.</p>
+        </div>
+      ) : (
+        <div className="item-grid">
+          {filtered.map((c) => (
+            <div key={c.id} className="item-card">
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--glass-bg)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.75rem", fontSize: "1.2rem", fontWeight: 700, color: "var(--accent)" }}>
+                {c.name.charAt(0)}
+              </div>
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "white", margin: "0 0 0.25rem" }}>{c.name}</h3>
+              <p style={{ color: "var(--text-dim)", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 4, marginBottom: "0.5rem" }}><MapPin size={13} /> {c.location}</p>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                {c.tags.map((t) => <span key={t} className="status-pill info">{t}</span>)}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", marginBottom: "1rem" }}>
+                <span style={{ color: "var(--text-muted)" }}><Users size={13} style={{ verticalAlign: "middle" }} /> {c.students.toLocaleString()}</span>
+                <span style={{ color: "var(--warning)", fontWeight: 600 }}><Star size={13} style={{ verticalAlign: "middle" }} /> {c.rating}</span>
+              </div>
+              <Link href={"/colleges/" + c.id} style={{ textDecoration: "none" }}>
+                <button className="btn-secondary btn-sm" style={{ width: "100%" }}>View Profile <ArrowRight size={14} /></button>
+              </Link>
             </div>
-          </article>
-
-          <article className="events-hub glass-panel">
-            <header>
-              <h2 className="font-display">Talent experiences</h2>
-              <button type="button" className="cta-outline">
-                Launch event
-              </button>
-            </header>
-            <div className="events-list">
-              {(events.length ? events : fallbackEvents).map((event) => (
-                <div key={event.id || event.title} className="event-card">
-                  <span className="event-date">{event.date}</span>
-                  <div>
-                    <h3>{event.title}</h3>
-                    <span>{event.owner}</span>
-                  </div>
-                  <button type="button" className="cta-outline">
-                    Manage
-                  </button>
-                </div>
-              ))}
-            </div>
-          </article>
-        </section>
-
-        <section className="table-panel glass-panel">
-          <header className="table-header">
-            <span>Standout students ready for spotlight</span>
-            <button type="button" className="cta-outline">
-              Export list
-            </button>
-          </header>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Domain</th>
-                  <th>Score</th>
-                  <th>MicroGigs shipped</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(standoutStudents.length ? standoutStudents : fallbackStandouts).map((student) => (
-                  <tr key={student.id || student.name}>
-                    <td>{student.name}</td>
-                    <td>{student.domain}</td>
-                    <td>{student.score}</td>
-                    <td>{student.microgigs}</td>
-                    <td>
-                      <button type="button" className="cta-outline">
-                        Introduce recruiter
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
-    </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
   );
 }
