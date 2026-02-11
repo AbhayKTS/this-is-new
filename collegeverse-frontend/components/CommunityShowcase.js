@@ -1,60 +1,47 @@
-import { GraduationCap, Users2, Sparkles } from "lucide-react";
+﻿import { GraduationCap, Users2, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 const CommunityShowcase = () => {
   return (
-    <section className="community-shell">
+    <section className="community-section">
       <div className="container">
-        <div className="glass-panel community-grid">
-          <div className="community-copy">
+        <div className="community-layout">
+          <div className="community-text">
             <span className="badge-pill">
-              <Sparkles size={18} />
-              Campus x Industry
+              <Sparkles size={16} /> Campus x Industry
             </span>
             <h2>
-              Plug into the <span className="title-gradient">CollegeVerse</span> network
+              Plug into the <span className="text-gradient">CollegeVerse</span> network
             </h2>
             <p>
               Students, clubs, colleges, and recruiters share one aligned mission: unlock talent, reward contribution, and prove credibility across the nation.
             </p>
-            <div className="cta-row">
-              <Link href="/leaderboard" className="cta-pill">
-                View live leaderboard
-              </Link>
-              <Link href="/microgigs" className="cta-outline">
-                Browse MicroGigs
-              </Link>
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+              <Link href="/leaderboard" className="btn-primary">View live leaderboard</Link>
+              <Link href="/microgigs" className="btn-ghost">Browse MicroGigs</Link>
             </div>
           </div>
 
-          <div className="community-grid__cards">
-            <article className="tilt-card">
-              <div className="feature-icon">
-                <GraduationCap size={26} />
-              </div>
-              <h3 className="font-display" style={{ marginTop: "1.4rem", marginBottom: "0.5rem" }}>Colleges</h3>
-              <p style={{ color: "rgba(202, 213, 255, 0.78)", lineHeight: 1.7 }}>
-                Verify cohorts, launch inter-college quests, and track growth in real time with DAO-ready governance tools.
+          <div className="community-cards">
+            <article className="glass-card" style={{ padding: "1.5rem" }}>
+              <div className="feature-icon"><GraduationCap size={24} /></div>
+              <h3 className="font-display" style={{ margin: "1rem 0 0.5rem", color: "white" }}>Colleges</h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: 1.7, fontSize: "0.9rem" }}>
+                Verify cohorts, launch inter-college quests, and track growth in real time.
               </p>
             </article>
-
-            <article className="tilt-card">
-              <div className="feature-icon">
-                <Users2 size={26} />
-              </div>
-              <h3 className="font-display" style={{ marginTop: "1.4rem", marginBottom: "0.5rem" }}>Recruiters</h3>
-              <p style={{ color: "rgba(202, 213, 255, 0.78)", lineHeight: 1.7 }}>
-                Spot on-chain verified profiles, shortlist faster, and engage future hires with real proof-of-work.
+            <article className="glass-card" style={{ padding: "1.5rem" }}>
+              <div className="feature-icon"><Users2 size={24} /></div>
+              <h3 className="font-display" style={{ margin: "1rem 0 0.5rem", color: "white" }}>Recruiters</h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: 1.7, fontSize: "0.9rem" }}>
+                Spot on-chain verified profiles, shortlist faster, and engage future hires.
               </p>
             </article>
-
-            <article className="tilt-card">
-              <div className="feature-icon">
-                <Sparkles size={26} />
-              </div>
-              <h3 className="font-display" style={{ marginTop: "1.4rem", marginBottom: "0.5rem" }}>Creators & Leaders</h3>
-              <p style={{ color: "rgba(202, 213, 255, 0.78)", lineHeight: 1.7 }}>
-                Host AMAs, drop quests, and mentor rising talent while earning $CVR rewards and soulbound recognition.
+            <article className="glass-card" style={{ padding: "1.5rem" }}>
+              <div className="feature-icon"><Sparkles size={24} /></div>
+              <h3 className="font-display" style={{ margin: "1rem 0 0.5rem", color: "white" }}>Creators</h3>
+              <p style={{ color: "var(--text-muted)", lineHeight: 1.7, fontSize: "0.9rem" }}>
+                Host AMAs, drop quests, and mentor rising talent while earning rewards.
               </p>
             </article>
           </div>

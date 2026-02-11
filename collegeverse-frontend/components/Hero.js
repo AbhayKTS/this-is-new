@@ -1,82 +1,63 @@
-import { ArrowRight, BookOpen, Laptop2, GraduationCap } from "lucide-react";
+﻿import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import StatMarquee from "./StatMarquee";
 
 const Hero = () => {
   return (
-    <section id="home" className="hero-shell nebula-wrap">
-      <div className="container">
-        <div className="hero-layout glass-panel animate-slide-up">
-          <div className="hero-copy">
-            <span className="badge-pill">
-              <span className="badge-dot" />
-              Top 10,000 Students Across India
-            </span>
+    <section className="hero-section">
+      <div className="container hero-content">
+        <div className="hero-text">
+          <span className="badge-pill">
+            <span className="badge-dot" />
+            Top 10,000 Students Across India
+          </span>
 
-            <h1 className="hero-title">
-              Where Every Student <span className="title-gradient">Shines</span>
-            </h1>
+          <h1>
+            Where Every Student <span className="text-gradient">Shines</span>
+          </h1>
 
-            <p className="hero-subtext">
-              Unified ranking, verified credentials and college communities — CollegeVerse is the digital universe for every
-              campus achiever.
-            </p>
+          <p>
+            Unified ranking, verified credentials and college communities &mdash; CollegeVerse is the digital universe for every campus achiever.
+          </p>
 
-            <div className="hero-actions">
-              <Link href="/login" className="cta-main">
-                Join CollegeVerse
-                <ArrowRight size={20} />
-              </Link>
-              <Link href="#features" className="cta-outline">
-                Explore Features
-              </Link>
-            </div>
-
-            <StatMarquee />
+          <div className="hero-actions">
+            <Link href="/login" className="btn-primary btn-lg">
+              Join CollegeVerse <ArrowRight size={20} />
+            </Link>
+            <Link href="#features" className="btn-ghost btn-lg">
+              Explore Features
+            </Link>
           </div>
 
-          <div className="hero-visual">
-            <div className="floating-orb orb-primary" />
-            <div className="floating-orb orb-secondary" />
+          <StatMarquee />
+        </div>
 
-            <div className="holo-icon holo-book">
-              <BookOpen size={40} />
+        <div className="hero-visual">
+          <div className="floating-orb orb-1" />
+          <div className="floating-orb orb-2" />
+          <div className="floating-orb orb-3" />
+
+          <div className="hero-card">
+            <div className="hero-card-header">
+              <div className="hero-avatar">CV</div>
+              <div>
+                <p style={{ fontWeight: 600, color: "white", margin: 0 }}>National Ranker</p>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>AI + Web3 Innovator</span>
+              </div>
             </div>
-            <div className="holo-icon holo-laptop">
-              <Laptop2 size={44} />
-            </div>
-            <div className="holo-icon holo-cap">
-              <GraduationCap size={42} />
-            </div>
-
-            <div className="hero-board tilt-card">
-              <header className="hero-board__header">
-                <div className="hero-avatar">CV</div>
-                <div>
-                  <p className="hero-board__name">National Ranker</p>
-                  <span className="hero-board__role">AI + Web3 Innovator</span>
-                </div>
-              </header>
-
-              <ul className="hero-board__stats">
-                <li>
-                  <span className="label">XP Score</span>
-                  <strong>9,650</strong>
-                  <small>+320 this week</small>
-                </li>
-                <li>
-                  <span className="label">Domains</span>
-                  <strong>AI, DevRel</strong>
-                  <small>Synced 4h ago</small>
-                </li>
-                <li>
-                  <span className="label">Rewards</span>
-                  <strong>12 NFTs</strong>
-                  <small>$CVR · DAO Ready</small>
-                </li>
-              </ul>
-
-              <div className="glimmer" />
+            <div className="hero-card-stats">
+              <div className="hero-stat">
+                <span className="label">XP Score</span>
+                <div><strong>9,650</strong> <small>+320 this week</small></div>
+              </div>
+              <div className="hero-stat">
+                <span className="label">Domains</span>
+                <div><strong>AI, DevRel</strong> <small>Synced 4h ago</small></div>
+              </div>
+              <div className="hero-stat">
+                <span className="label">Rewards</span>
+                <div><strong>12 NFTs</strong> <small>$CVR Ready</small></div>
+              </div>
             </div>
           </div>
         </div>
