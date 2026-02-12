@@ -7,6 +7,7 @@ import {
   registerUser, 
   logoutUser,
   resetPassword,
+  loginWithGoogle,
   isCollegeEmail,
   USER_ROLES,
   ACCESS_LEVELS
@@ -97,6 +98,23 @@ export const AuthProvider = ({ children }) => {
     return await resetPassword(email);
   };
 
+  const googleLogin = async (intendedRole) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await loginWithGoogle(intendedRole);
+      if (!result.success) {
+        setError(result.message);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      return { success: false, message: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshUserData = async () => {
     if (!user) return;
     try {
@@ -148,6 +166,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     forgotPassword,
+    googleLogin,
     refreshUserData,
     can,
     isCollegeEmail,

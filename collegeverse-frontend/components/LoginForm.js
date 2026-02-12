@@ -5,7 +5,7 @@ import { Mail, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle } f
 
 export default function LoginForm({ role = "student", heading, subtitle, onAuthenticated }) {
   const router = useRouter();
-  const { login, register, forgotPassword } = useAuth();
+  const { login, register, forgotPassword, googleLogin } = useAuth();
   const [mode, setMode] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -83,6 +83,25 @@ export default function LoginForm({ role = "student", heading, subtitle, onAuthe
       const result = await forgotPassword(formData.email);
       if (result.success) setSuccess("Password reset email sent! Check your inbox.");
       else setError(result.message || "Could not send reset email.");
+    } catch (err) {
+      setError("An unexpected error occurred.");
+    }
+    setLoading(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(""); setSuccess("");
+    setLoading(true);
+    try {
+      const result = await googleLogin(role);
+      if (result.success) {
+        setSuccess("Signed in with Google! Redirecting...");
+        const routes = { student: "/dashboard", college: "/college/dashboard", recruiter: "/recruiter/dashboard" };
+        if (onAuthenticated) onAuthenticated();
+        else setTimeout(() => router.push(routes[role] || "/dashboard"), 800);
+      } else {
+        setError(result.message || "Google sign-in failed.");
+      }
     } catch (err) {
       setError("An unexpected error occurred.");
     }

@@ -6,7 +6,9 @@ import {
   signOut,
   sendEmailVerification,
   sendPasswordResetEmail,
-  onAuthStateChanged
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import { 
   getFirestore, 
@@ -26,6 +28,9 @@ import firebaseConfig from "./firebaseConfig";
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope("email");
+googleProvider.addScope("profile");
 
 // ============================================
 // HELPER: Detect if email is college email
@@ -339,6 +344,92 @@ export const resetPassword = async (email) => {
     return { success: true, message: "Password reset email sent!" };
   } catch (error) {
     return { success: false, message: getAuthErrorMessage(error.code) };
+  }
+};
+
+/**
+ * Login with Google
+ * @param {string} intendedRole - optional role hint (student/college/recruiter)
+ */
+export const loginWithGoogle = async (intendedRole) => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    const email = user.email;
+    const collegeEmail = isCollegeEmail(email);
+
+    // Check if user doc already exists
+    const userDocRef = doc(db, "students", user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      // Determine role
+      let role;
+      if (intendedRole === "college") role = "college";
+      else if (intendedRole === "recruiter") role = "recruiter";
+      else role = collegeEmail ? USER_ROLES.STUDENT : USER_ROLES.EXPLORER;
+
+      // Create new user document
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        email: email.toLowerCase(),
+        name: user.displayName || "",
+        displayName: user.displayName || "",
+        avatar: user.photoURL || null,
+        phone: user.phoneNumber || "",
+        role: role,
+        isCollegeEmail: collegeEmail,
+        collegeId: null,
+        collegeName: null,
+        bio: "",
+        reputation: 0,
+        questionsAsked: 0,
+        answersGiven: 0,
+        reviewsWritten: 0,
+        emailVerified: user.emailVerified,
+        isVerifiedSenior: false,
+        verificationStatus: null,
+        authProvider: "google",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        user: user,
+        role: role,
+        isNewUser: true,
+        isCollegeEmail: collegeEmail,
+      };
+    }
+
+    // Existing user — update last login
+    const userData = userDoc.data();
+    await updateDoc(userDocRef, {
+      lastLoginAt: serverTimestamp(),
+      avatar: user.photoURL || userData.avatar || null,
+    });
+
+    return {
+      success: true,
+      user: user,
+      userData: userData,
+      role: userData.role,
+      isNewUser: false,
+      isCollegeEmail: userData.isCollegeEmail,
+      accessLevel: ACCESS_LEVELS[userData.role],
+    };
+  } catch (error) {
+    console.error("Google login error:", error);
+    if (error.code === "auth/popup-closed-by-user") {
+      return { success: false, message: "Sign-in popup was closed." };
+    }
+    return {
+      success: false,
+      error: error.code,
+      message: getAuthErrorMessage(error.code) || error.message,
+    };
   }
 };
 
